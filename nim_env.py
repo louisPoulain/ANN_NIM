@@ -231,3 +231,79 @@ class OptimalPlayer:
                     amount_to_remove = heap - target_size
                     move = [index + 1, amount_to_remove]
                     return move
+
+                
+class QL_Player(OptimalPlayer):
+    def __init__(self, epsilon, player):
+        super(QL_Player, self).__init__(epsilon = epsilon, player = player)
+        Qvals = {}
+        for i in range(0, 8):
+            for j in range(0, 8):
+                for k in range(0, 8):
+                    next_actions = {}
+                    for l in range(i):
+                        next_actions[str(l) + str(j) + str(k)] = 0
+                    for l in range(j):
+                        next_actions[str(i) + str(l) + str(k)] = 0
+                    for l in range(k):
+                        next_actions[str(i) + str(j) + str(l)] = 0
+                    
+                    string = str(i) + str(j) + str(k)
+                    Qvals[string] = next_actions
+        self.qvals = Qvals
+        
+    def QL_Move(self, heaps):
+        
+        # choose A from state s with eps-greedy policy
+        current_config = str(heaps[0]) + str(heaps[1]) + str(heaps[2])
+        
+        if random.random() < self.epsilon:
+            i, j, k = random.choice(list(self.qvals[current_config]))
+        else:
+            #print(self.qvals[current_config])
+            max_val = max(self.qvals[current_config].values())
+            max_keys = []
+            for key, value in self.qvals[current_config].items():
+                if value == max_val:
+                    max_keys.append(key)
+            #print(max_keys)
+            i, j, k = random.choice(max_keys) # choose at random amongst the best options 
+        
+        action = [int(i), int(j), int(k)]
+        #print('action: ', action)
+        nb_stick, pile_to_take = max(np.array(heaps) - np.array(action)), np.argmax(np.array(heaps) - np.array(action))
+        move = [pile_to_take + 1, nb_stick]
+        #print('move: ', move)
+        return move, action
+    
+    def update_qval(self, ql_action, other_move, heaps_before, heaps_after, env, alpha, gamma):
+        """
+        inputs:
+                - ql_action: the last action by ql player
+                - other_move: the move played just after 'ql_action'
+                - heaps_before: state of the game before 'ql_action'
+                - heaps_after: current game (after 'other_move')
+        """
+        current_config = str(heaps_after[0]) + str(heaps_after[1]) + str(heaps_after[2])
+        reward = env.reward(env.current_player)
+        if self.qvals[current_config]: # the dictionnary is not empty (ie we can take an action)
+            max_val = max(self.qvals[current_config].values())
+            max_keys = []
+            for key, value in self.qvals[current_config].items():
+                if value == max_val:
+                    max_keys.append(key)
+            Q_s_new_a = self.qvals[current_config][random.choice(max_keys)] # in the algo: max Q(S', a) over all a (on peut lui trouver un meilleur nom)
+        else:
+            Q_s_new_a = 0
+        
+        previous_config = str(heaps_before[0]) + str(heaps_before[1]) + str(heaps_before[2])
+        
+        # update Q(s, a)
+        i, j, k = ql_action
+        self.qvals[previous_config][str(i) + str(j) + str(k)] = (1 - alpha) * self.qvals[previous_config][str(i) + str(j) + str(k)] + alpha * reward + gamma * alpha * Q_s_new_a
+        
+       
+    def act(self, heaps, **kwargs):
+        return self.QL_Move(heaps)
+            
+        
