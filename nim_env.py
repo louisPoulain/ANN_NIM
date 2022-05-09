@@ -251,6 +251,10 @@ class QL_Player(OptimalPlayer):
                     string = str(i) + str(j) + str(k)
                     Qvals[string] = next_actions
         self.qvals = Qvals
+    def copy(self):
+        new_player = QL_Player(self.epsilon, self.player)
+        new_player.qvals = self.qvals.copy()
+        return new_player
         
     def QL_Move(self, heaps):
         
@@ -274,6 +278,7 @@ class QL_Player(OptimalPlayer):
         nb_stick, pile_to_take = max(np.array(heaps) - np.array(action)), np.argmax(np.array(heaps) - np.array(action))
         move = [pile_to_take + 1, nb_stick]
         #print('move: ', move)
+        #print(action)
         return move, action
     
     def update_qval(self, ql_action, other_move, heaps_before, heaps_after, env, alpha, gamma):
@@ -284,8 +289,11 @@ class QL_Player(OptimalPlayer):
                 - heaps_before: state of the game before 'ql_action'
                 - heaps_after: current game (after 'other_move')
         """
+        #print(heaps_after)
         current_config = str(heaps_after[0]) + str(heaps_after[1]) + str(heaps_after[2])
-        reward = env.reward(env.current_player)
+        reward = env.reward(self.player)
+        print('player: ', self.player, 'current config: ', current_config, 'previous config: ', heaps_before, 'action: ', ql_action, 'other move: ', other_move, 'reward: ', reward)
+        #reward = env.reward(env.current_player)
         if self.qvals[current_config]: # the dictionnary is not empty (ie we can take an action)
             max_val = max(self.qvals[current_config].values())
             max_keys = []
@@ -300,7 +308,12 @@ class QL_Player(OptimalPlayer):
         
         # update Q(s, a)
         i, j, k = ql_action
+        #print(self.qvals[previous_config], ql_action)
+        #print(heaps_before, ql_action, other_move)
+        print('updating config ', previous_config)
         self.qvals[previous_config][str(i) + str(j) + str(k)] = (1 - alpha) * self.qvals[previous_config][str(i) + str(j) + str(k)] + alpha * reward + gamma * alpha * Q_s_new_a
+        #print(self.qvals['210'])
+        print(self.qvals[previous_config])
         
        
     def act(self, heaps, **kwargs):
