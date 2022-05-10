@@ -305,5 +305,3 @@ class QL_Player(OptimalPlayer):
        
     def act(self, heaps, **kwargs):
         return self.QL_Move(heaps)
-            
-        
