@@ -273,15 +273,15 @@ class QL_Player(OptimalPlayer):
             #print(max_keys)
             i, j, k = random.choice(max_keys) # choose at random amongst the best options 
         
-        action = [int(i), int(j), int(k)]
+        futur_env = [int(i), int(j), int(k)]
         #print('action: ', action)
-        nb_stick, pile_to_take = max(np.array(heaps) - np.array(action)), np.argmax(np.array(heaps) - np.array(action))
+        nb_stick, pile_to_take = max(np.array(heaps) - np.array(futur_env)), np.argmax(np.array(heaps) - np.array(futur_env))
         move = [pile_to_take + 1, nb_stick]
         #print('move: ', move)
         #print(action)
-        return move, action
+        return move
     
-    def update_qval(self, ql_action, other_move, heaps_before, heaps_after, env, alpha, gamma):
+    def update_qval(self, env_before_QLplays, env_after_QLplays, env_after_other_plays, env, alpha, gamma):
         """
         inputs:
                 - ql_action: the last action by ql player
@@ -290,8 +290,9 @@ class QL_Player(OptimalPlayer):
                 - heaps_after: current game (after 'other_move')
         """
         #print(heaps_after)
-        current_config = str(heaps_after[0]) + str(heaps_after[1]) + str(heaps_after[2])
+        current_config = str(env_after_other_plays[0]) + str(env_after_other_plays[1]) + str(env_after_other_plays[2])
         reward = env.reward(self.player)
+        print(reward == 1)
         #print('player: ', self.player, 'current config: ', current_config, 'previous config: ', heaps_before, 'action: ', ql_action, 'other move: ', other_move, 'reward: ', reward)
         #reward = env.reward(env.current_player)
         if self.qvals[current_config]: # the dictionnary is not empty (ie we can take an action)
@@ -304,10 +305,10 @@ class QL_Player(OptimalPlayer):
         else:
             Q_s_new_a = 0
         
-        previous_config = str(heaps_before[0]) + str(heaps_before[1]) + str(heaps_before[2])
+        previous_config = str(env_before_QLplays[0]) + str(env_before_QLplays[1]) + str(env_before_QLplays[2])
         
         # update Q(s, a)
-        i, j, k = ql_action
+        i, j, k = env_after_QLplays
         #print(self.qvals[previous_config], ql_action)
         #print(heaps_before, ql_action, other_move)
         #print('updating config ', previous_config, ' wtih action ', ql_action, ' for player ', self.player)
