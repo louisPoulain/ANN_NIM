@@ -215,7 +215,7 @@ def Q2(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamm
         for s in range(nb_samples):
             env = NimEnv(seed = seed)
             eps = max(eps_min, eps_max * (1 - 1 / n_star))
-            playerOpt = OptimalPlayer(epsilon = 0.05, player = 0)
+            playerOpt = OptimalPlayer(epsilon = 0.5, player = 0)
             playerQL = QL_Player(epsilon = eps, player = 1)
             total_reward = 0.0
             for i in range(nb_games):
@@ -517,10 +517,8 @@ def Q7(Eps, nb_games = 20000, alpha = 0.1, gamma = 0.99, step = 250, seed = None
             playerQL = QL_Player(epsilon = eps, player = 0)
             
             for i in range(nb_games):
-                #print('new game\n')
                 QL_one_game_vs_self(playerQL, eps = playerQL.epsilon, 
-                                        alpha = alpha, gamma = gamma, env = env)
-                #print(playerQL.qvals['210'], playerQL.qvals['250'])
+                                    alpha = alpha, gamma = gamma, env = env)
                 if i % step == step - 1:
                     Steps[i // step] = i
                     total_reward = 0.0
@@ -607,7 +605,7 @@ def Q8(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamm
     ax = axs[0]
     ax2 = axs[1]
     legend = []
-    Final_Mrand, Final_Mopt = {}, {} 
+    Final_Mrand, Final_Mopt, Final_qvals = {}, {}, {}
     for j, n_star in enumerate(N_star):
         Mopt = np.zeros(int(nb_games / step))
         Mrand = np.zeros(int(nb_games / step))
@@ -660,6 +658,7 @@ def Q8(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamm
         
         Final_Mopt['{}'.format(n_star)] = Mopt[-1] / nb_samples
         Final_Mrand['{}'.format(n_star)] = Mrand[-1] / nb_samples
+        Final_qvals['{}'.format(n_star)] = playerQL.qvals
         ax.plot(Steps, Mopt / nb_samples)
         ax2.plot(Steps, Mrand / nb_samples)
         legend.append(r"$n_* = {}$".format(n_star))
@@ -676,7 +675,7 @@ def Q8(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamm
         plt.savefig('./Data/' + question + '_' + str(nb_samples) + '_samples.png')
     else:
         plt.savefig('./Data/' + question + '.png')
-    return Final_Mopt, Final_Mrand, playerQL.qvals
+    return Final_Mopt, Final_Mrand, Final_qvals
             
 def Q10(playerQL, configs = ['100', '120', '002'], question = 'q2-10', save = True):
     first_config = configs[0]
@@ -687,7 +686,6 @@ def Q10(playerQL, configs = ['100', '120', '002'], question = 'q2-10', save = Tr
     ax1 = axs[0]
     ax2 = axs[1]
     ax3 = axs[2]
-    nb_of_future_config1 = len(qval[first_config])
     ticks1 = [t for t in qval[first_config].keys()]
     qvals1 = [q for q in qval[first_config].values()]
     ax1.set_xticks(ticks1)
@@ -696,9 +694,6 @@ def Q10(playerQL, configs = ['100', '120', '002'], question = 'q2-10', save = Tr
     ax1.set_title('Current configuration: ' + str(first_config[0]) + ' | ' + str(first_config[1]) + ' | ' + str(first_config[2]))
     ax1.bar(ticks1, qvals1)
     
-    
-    
-    nb_of_future_config2 = len(qval[second_config])
     ticks2 = [t for t in qval[second_config].keys()]
     qvals2 = [q for q in qval[second_config].values()]
     ax2.set_xticks(ticks2)
@@ -706,7 +701,7 @@ def Q10(playerQL, configs = ['100', '120', '002'], question = 'q2-10', save = Tr
     ax2.set_ylabel('Q-values')
     ax2.set_title('Current configuration: ' + str(second_config[0]) + ' | ' + str(second_config[1]) + ' | ' + str(second_config[2]))
     ax2.bar(ticks2, qvals2)
-    nb_of_future_config3 = len(qval[third_config])
+    
     ticks3 = [t for t in qval[third_config].keys()]
     qvals3 = [q for q in qval[third_config].values()]
     ax3.set_xticks(ticks3)

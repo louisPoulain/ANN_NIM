@@ -1,5 +1,4 @@
 # In this file we implement some helpers functions and algorithms dedicated to our tasks
-# Attention: la fonction QL one game ne semble pas être juste il faut aussi update quand le jeu est gagné
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -25,25 +24,34 @@ def QL_one_game(playerQL, playerOpt, eps, eps_opt, alpha, gamma, env, update = T
         - alpha: learning rate of the QL player
         - gamma: discount factor of the QL player
         - env: an instance of the class NimEnv. Setting with which the players are going to play
-        - update: if set to false, the Q-values are not updated. Default: True. By definition of the Q-learning algorithm, updates can be done for a player after the turn of the other player and not after the first turn.
+        - update: if set to false, the Q-values are not updated. Default: True. 
+            The utility of this argument is to be able to play a game without having to update the 
+            Q-values (useful when computing Mopt and Mrand)
     Output:
         - reward of the QL-player
-    The idea of the update is to keep a copy of the environment before the turn of a player and after the turn of the other (heaps before and heaps_after) and also the actions played by each.
+    The idea of the update is to keep copies of the environment at different times: 
+        - before the turn of the QL player
+        - after the turn of the QL player
+        - after the turn of the Opt player
     """
     heaps, _, _ = env.observe()
     i = 0
     while not env.end:
         if env.current_player == playerOpt.player:
-            move = playerOpt.act(heaps)
-            heaps, end, winner = env.step(move)
+            Opt_move = playerOpt.act(heaps)
+            heaps, end, winner = env.step(Opt_move)
+            heaps_after_opt_plays = heaps.copy()
             if i > 0 and update == True:
-                playerQL.update_qval(ql_action = action, other_move = move, heaps_before = heaps_before, heaps_after = heaps,
-                                     env = env, alpha = alpha, gamma = gamma)
+                playerQL.update_qval(env_before_QLplays = heaps_beforeQL_move, env_after_QLplays = heaps_afterQL_plays, 
+                                    env_after_other_plays = heaps_after_opt_plays, env = env, alpha = alpha, gamma = gamma)
         else:
-            heaps_before = heaps.copy()    
-            move, action = playerQL.act(heaps)
+            heaps_beforeQL_move = heaps.copy()    
+            move = playerQL.act(heaps)
             heaps, end, winner = env.step(move)
-        
+            heaps_afterQL_plays = heaps.copy()
+            if env.end: # otherwise when QL wins, its Q-values are not updated
+                playerQL.update_qval(env_before_QLplays = heaps_beforeQL_move, env_after_QLplays = heaps_afterQL_plays, 
+                                    env_after_other_plays = heaps_beforeQL_move, env = env, alpha = alpha, gamma = gamma)
         i += 1
     
     return env.reward(playerQL.player)
@@ -52,13 +60,16 @@ def QL_one_game_vs_self(playerQL, eps, alpha, gamma, env, update = True):
     """
     Implementation of one game of NIM of a Q-learning player (after: QL player) against itself.
     - inputs:
-        - playerQL: an instance of the PlayerQL class. The idea is to then create two copies of this player that will play against each other. 
-        Q-values are updated after each game for every instance (the copies and the original) if update is set to True (see after).
+        - playerQL: an instance of the PlayerQL class. The idea is to then create two copies of this player 
+            that will play against each other. Q-values are updated after each game for every instance 
+            (the copies and the original) if update is set to True (see after).
         - eps: epsilon associated to QL player (probability of playing at random)
         - alpha: learning rate of the QL player
         - gamma: discount factor of the QL player
         - env: an instance of the class NimEnv. Setting with which the players are going to play
-        - update: if set to false, the Q-values are not updated. Default: True. By definition of the Q-learning algorithm, updates can be done for a player after the turn of the other player and not after the first turn.
+        - update: if set to false, the Q-values are not updated. Default: True. 
+            The utility of this argument is to be able to play a game without having to update the 
+            Q-values (useful when computing Mopt and Mrand)
     - output: None
     
     The idea of the update is to keep a copy of the environment before the turn of a player and after the turn of the other (heaps before and heaps_after) and also the actions played by each.
@@ -69,45 +80,43 @@ def QL_one_game_vs_self(playerQL, eps, alpha, gamma, env, update = True):
     playerQL2.player = 0
     heaps, _, _ = env.observe()
     i = 0
-    heaps_after = [[], []]
-    Actions = []
     while not env.end:
         if env.current_player == playerQL1.player:
-            heaps_before1 = heaps.copy()
-            move1, action1 = playerQL1.act(heaps)
+            heaps_beforeQL1 = heaps.copy()
+            move1 = playerQL1.act(heaps)
             heaps, end, winner = env.step(move1)
-            heaps_after[1] = heaps.copy()
+            heaps_after_QL1_plays = heaps.copy()
             
         else:
-            heaps_before2 = heaps.copy()
-            move2, action2 = playerQL2.act(heaps)
+            heaps_beforeQL2 = heaps.copy()
+            move2 = playerQL2.act(heaps)
             heaps, end, winner = env.step(move2)
-            heaps_after[0] = heaps.copy()
+            heaps_after_QL2_plays = heaps.copy()
         if (i > 0 and update == True and (not (env.end))):
             if env.current_player == 0: # player 1 just played
-                playerQL.player = 0 
-                playerQL.update_qval(ql_action = action2, other_move = move1, heaps_before = heaps_before2, 
-                                     heaps_after = heaps_after[1],env = env, alpha = alpha, gamma = gamma)
+                playerQL.player = 0
+                playerQL.update_qval(env_before_QLplays = heaps_beforeQL2, env_after_QLplays = heaps_after_QL2_plays, 
+                                    env_after_other_plays = heaps_after_QL1_plays, env = env, alpha = alpha, gamma = gamma)
             else: # player 2 just played
                 playerQL.player = 1
-                playerQL.update_qval(ql_action = action1, other_move = move2, heaps_before = heaps_before1, heaps_after = heaps_after[0],
-                                     env = env, alpha = alpha, gamma = gamma)
+                playerQL.update_qval(env_before_QLplays = heaps_beforeQL1, env_after_QLplays = heaps_after_QL1_plays, 
+                                    env_after_other_plays = heaps_after_QL2_plays, env = env, alpha = alpha, gamma = gamma)
             
         if env.end: # we update Q-values for both players
             if env.current_player == 0: # player 1 has won
                 playerQL.player = 0 
-                playerQL.update_qval(ql_action = action2, other_move = move1, heaps_before = heaps_before2, 
-                                     heaps_after = heaps_after[1],env = env, alpha = alpha, gamma = gamma)
+                playerQL.update_qval(env_before_QLplays = heaps_beforeQL2, env_after_QLplays = heaps_after_QL2_plays, 
+                                    env_after_other_plays = heaps_after_QL1_plays, env = env, alpha = alpha, gamma = gamma)
                 playerQL.player = 1
-                playerQL.update_qval(ql_action = action1, other_move = move2, heaps_before = heaps_before1, heaps_after = heaps_after[0],
-                                     env = env, alpha = alpha, gamma = gamma)
+                playerQL.update_qval(env_before_QLplays = heaps_beforeQL1, env_after_QLplays = heaps_after_QL1_plays, 
+                                    env_after_other_plays = heaps_after_QL2_plays, env = env, alpha = alpha, gamma = gamma)
             else: # player 2 won the game
                 playerQL.player = 1
-                playerQL.update_qval(ql_action = action1, other_move = move2, heaps_before = heaps_before1, heaps_after = heaps_after[0],
-                                     env = env, alpha = alpha, gamma = gamma)
+                playerQL.update_qval(env_before_QLplays = heaps_beforeQL1, env_after_QLplays = heaps_after_QL1_plays, 
+                                    env_after_other_plays = heaps_after_QL2_plays, env = env, alpha = alpha, gamma = gamma)
                 playerQL.player = 0 
-                playerQL.update_qval(ql_action = action2, other_move = move1, heaps_before = heaps_before2, 
-                                     heaps_after = heaps_after[1],env = env, alpha = alpha, gamma = gamma)
+                playerQL.update_qval(env_before_QLplays = heaps_beforeQL2, env_after_QLplays = heaps_after_QL2_plays, 
+                                    env_after_other_plays = heaps_after_QL1_plays, env = env, alpha = alpha, gamma = gamma)
         
         playerQL1.qvals = playerQL.qvals.copy()
         playerQL2.qvals = playerQL.qvals.copy()
@@ -206,7 +215,7 @@ def Q2(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamm
         for s in range(nb_samples):
             env = NimEnv(seed = seed)
             eps = max(eps_min, eps_max * (1 - 1 / n_star))
-            playerOpt = OptimalPlayer(epsilon = 0.05, player = 0)
+            playerOpt = OptimalPlayer(epsilon = 0.5, player = 0)
             playerQL = QL_Player(epsilon = eps, player = 1)
             total_reward = 0.0
             for i in range(nb_games):
@@ -508,10 +517,8 @@ def Q7(Eps, nb_games = 20000, alpha = 0.1, gamma = 0.99, step = 250, seed = None
             playerQL = QL_Player(epsilon = eps, player = 0)
             
             for i in range(nb_games):
-                #print('new game\n')
                 QL_one_game_vs_self(playerQL, eps = playerQL.epsilon, 
-                                        alpha = alpha, gamma = gamma, env = env)
-                #print(playerQL.qvals['210'], playerQL.qvals['250'])
+                                    alpha = alpha, gamma = gamma, env = env)
                 if i % step == step - 1:
                     Steps[i // step] = i
                     total_reward = 0.0
@@ -598,7 +605,7 @@ def Q8(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamm
     ax = axs[0]
     ax2 = axs[1]
     legend = []
-    Final_Mrand, Final_Mopt = {}, {} 
+    Final_Mrand, Final_Mopt, Final_qvals = {}, {}, {}
     for j, n_star in enumerate(N_star):
         Mopt = np.zeros(int(nb_games / step))
         Mrand = np.zeros(int(nb_games / step))
@@ -651,6 +658,7 @@ def Q8(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamm
         
         Final_Mopt['{}'.format(n_star)] = Mopt[-1] / nb_samples
         Final_Mrand['{}'.format(n_star)] = Mrand[-1] / nb_samples
+        Final_qvals['{}'.format(n_star)] = playerQL.qvals
         ax.plot(Steps, Mopt / nb_samples)
         ax2.plot(Steps, Mrand / nb_samples)
         legend.append(r"$n_* = {}$".format(n_star))
@@ -667,9 +675,44 @@ def Q8(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamm
         plt.savefig('./Data/' + question + '_' + str(nb_samples) + '_samples.png')
     else:
         plt.savefig('./Data/' + question + '.png')
-    return Final_Mopt, Final_Mrand, playerQL.qvals
+    return Final_Mopt, Final_Mrand, Final_qvals
             
+def Q10(playerQL, configs = ['100', '120', '002'], question = 'q2-10', save = True):
+    first_config = configs[0]
+    second_config = configs[1]
+    third_config = configs[2]
+    qval = playerQL.qvals
+    fig, axs = plt.subplots(1, 3, figsize = (18, 6))
+    ax1 = axs[0]
+    ax2 = axs[1]
+    ax3 = axs[2]
+    ticks1 = [t for t in qval[first_config].keys()]
+    qvals1 = [q for q in qval[first_config].values()]
+    ax1.set_xticks(ticks1)
+    ax1.set_xlabel('Possible future configurations')
+    ax1.set_ylabel('Q-values')
+    ax1.set_title('Current configuration: ' + str(first_config[0]) + ' | ' + str(first_config[1]) + ' | ' + str(first_config[2]))
+    ax1.bar(ticks1, qvals1)
+    
+    ticks2 = [t for t in qval[second_config].keys()]
+    qvals2 = [q for q in qval[second_config].values()]
+    ax2.set_xticks(ticks2)
+    ax2.set_xlabel('Possible future configurations')
+    ax2.set_ylabel('Q-values')
+    ax2.set_title('Current configuration: ' + str(second_config[0]) + ' | ' + str(second_config[1]) + ' | ' + str(second_config[2]))
+    ax2.bar(ticks2, qvals2)
+    
+    ticks3 = [t for t in qval[third_config].keys()]
+    qvals3 = [q for q in qval[third_config].values()]
+    ax3.set_xticks(ticks3)
+    ax3.set_xlabel('Possible future configurations')
+    ax3.set_ylabel('Q-values')
+    ax3.set_title('Current configuration: ' + str(third_config[0]) + ' | ' + str(third_config[1]) + ' | ' + str(third_config[2]))
+    ax3.bar(ticks3, qvals3)
 
+    if save:
+        fig.savefig('./Data/' + question + '.png')
+    
     
     
     
