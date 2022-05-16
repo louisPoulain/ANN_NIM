@@ -1,4 +1,5 @@
 # In this file we implement some helpers functions and algorithms dedicated to our tasks
+# Attention: la fonction QL one game ne semble pas être juste il faut aussi update quand le jeu est gagné
 
 import numpy as np
 import matplotlib.pyplot as plt
