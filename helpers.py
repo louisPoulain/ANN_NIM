@@ -678,7 +678,46 @@ def Q8(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamm
         plt.savefig('./Data/' + question + '.png')
     return Final_Mopt, Final_Mrand, playerQL.qvals
             
+def Q10(playerQL, configs = ['100', '120', '002'], question = 'q2-10', save = True):
+    first_config = configs[0]
+    second_config = configs[1]
+    third_config = configs[2]
+    qval = playerQL.qvals
+    fig, axs = plt.subplots(1, 3, figsize = (18, 6))
+    ax1 = axs[0]
+    ax2 = axs[1]
+    ax3 = axs[2]
+    nb_of_future_config1 = len(qval[first_config])
+    ticks1 = [t for t in qval[first_config].keys()]
+    qvals1 = [q for q in qval[first_config].values()]
+    ax1.set_xticks(ticks1)
+    ax1.set_xlabel('Possible future configurations')
+    ax1.set_ylabel('Q-values')
+    ax1.set_title('Current configuration: ' + str(first_config[0]) + ' | ' + str(first_config[1]) + ' | ' + str(first_config[2]))
+    ax1.bar(ticks1, qvals1)
+    
+    
+    
+    nb_of_future_config2 = len(qval[second_config])
+    ticks2 = [t for t in qval[second_config].keys()]
+    qvals2 = [q for q in qval[second_config].values()]
+    ax2.set_xticks(ticks2)
+    ax2.set_xlabel('Possible future configurations')
+    ax2.set_ylabel('Q-values')
+    ax2.set_title('Current configuration: ' + str(second_config[0]) + ' | ' + str(second_config[1]) + ' | ' + str(second_config[2]))
+    ax2.bar(ticks2, qvals2)
+    nb_of_future_config3 = len(qval[third_config])
+    ticks3 = [t for t in qval[third_config].keys()]
+    qvals3 = [q for q in qval[third_config].values()]
+    ax3.set_xticks(ticks3)
+    ax3.set_xlabel('Possible future configurations')
+    ax3.set_ylabel('Q-values')
+    ax3.set_title('Current configuration: ' + str(third_config[0]) + ' | ' + str(third_config[1]) + ' | ' + str(third_config[2]))
+    ax3.bar(ticks3, qvals3)
 
+    if save:
+        fig.savefig('./Data/' + question + '.png')
+    
     
     
     

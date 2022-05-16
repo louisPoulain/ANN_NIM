@@ -292,7 +292,7 @@ class QL_Player(OptimalPlayer):
         #print(heaps_after)
         current_config = str(env_after_other_plays[0]) + str(env_after_other_plays[1]) + str(env_after_other_plays[2])
         reward = env.reward(self.player)
-        print(reward == 1)
+        #print(reward == 1)
         #print('player: ', self.player, 'current config: ', current_config, 'previous config: ', heaps_before, 'action: ', ql_action, 'other move: ', other_move, 'reward: ', reward)
         #reward = env.reward(env.current_player)
         if self.qvals[current_config]: # the dictionnary is not empty (ie we can take an action)
