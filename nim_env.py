@@ -186,7 +186,7 @@ class OptimalPlayer:
         """
         nim = 0
         for i in heaps:
-            nim = nim ^ i # ^ = XOR operation in 
+            nim = nim ^ i 
         return nim
 
     def act(self, heaps, **kwargs):
@@ -301,7 +301,7 @@ class QL_Player(OptimalPlayer):
             for key, value in self.qvals[current_config].items():
                 if value == max_val:
                     max_keys.append(key)
-            Q_s_new_a = self.qvals[current_config][random.choice(max_keys)] # in the algo: max Q(S', a) over all a (on peut lui trouver un meilleur nom)
+            Q_s_new_a = self.qvals[current_config][random.choice(max_keys)] # in the algo: max Q(S', a) over all a
         else:
             Q_s_new_a = 0
         

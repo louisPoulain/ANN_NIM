@@ -49,7 +49,7 @@ def QL_one_game(playerQL, playerOpt, eps, eps_opt, alpha, gamma, env, update = T
             move = playerQL.act(heaps)
             heaps, end, winner = env.step(move)
             heaps_afterQL_plays = heaps.copy()
-            if env.end: # otherwise when QL wins, its Q-values are not updated
+            if env.end and update == True: # otherwise when QL wins, its Q-values are not updated
                 playerQL.update_qval(env_before_QLplays = heaps_beforeQL_move, env_after_QLplays = heaps_afterQL_plays, 
                                     env_after_other_plays = heaps_beforeQL_move, env = env, alpha = alpha, gamma = gamma)
         i += 1
@@ -102,7 +102,7 @@ def QL_one_game_vs_self(playerQL, eps, alpha, gamma, env, update = True):
                 playerQL.update_qval(env_before_QLplays = heaps_beforeQL1, env_after_QLplays = heaps_after_QL1_plays, 
                                     env_after_other_plays = heaps_after_QL2_plays, env = env, alpha = alpha, gamma = gamma)
             
-        if env.end: # we update Q-values for both players
+        if env.end and update == True: # we update Q-values for both players
             if env.current_player == 0: # player 1 has won
                 playerQL.player = 0 
                 playerQL.update_qval(env_before_QLplays = heaps_beforeQL2, env_after_QLplays = heaps_after_QL2_plays, 
@@ -169,7 +169,7 @@ def Q1(nb_games = 20000, eps = 0.1, eps_opt = 0.5, alpha = 0.1, gamma = 0.99, st
                 Rewards[i // step] += total_reward / step
                 Steps[i // step] = i
                 total_reward = 0.0
-            env.reset()
+            env.reset(seed = seed)
     Rewards = Rewards / nb_samples
     plt.plot(Steps, Rewards)
     plt.title('Evolution of average reward every 250 games')
@@ -283,7 +283,6 @@ def Q3(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamm
     for j, n_star in enumerate(N_star):
         Mopt = np.zeros(int(nb_games / step))
         Mrand = np.zeros(int(nb_games / step))
-        Rewards = []
         Steps = np.zeros(int(nb_games / step))
         for l in range(nb_samples):
             total_reward = 0.0
@@ -304,12 +303,11 @@ def Q3(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamm
                 total_reward += QL_one_game(playerQL, playerOpt, eps = playerQL.epsilon, eps_opt = playerOpt.epsilon, 
                                         alpha = alpha, gamma = gamma, env = env)
                 if i % step == step - 1:
-                    Rewards.append(total_reward / step)
                     Steps[i // step] = i
                     total_reward = 0.0
                     mopt = 0
                     mrand = 0
-                    new_env = NimEnv()
+                    new_env = NimEnv(seed = seed)
                     for m in range(5):  # here we run for several different seeds
                         # compute M_opt
                         new_playerOpt = OptimalPlayer(epsilon = 0, player = 0)
@@ -322,7 +320,7 @@ def Q3(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamm
                                 playerQL.player = 0
                             mopt += QL_one_game(playerQL, new_playerOpt, eps = playerQL.epsilon, eps_opt = new_playerOpt.epsilon, 
                                                 alpha = alpha, gamma = gamma, env = new_env, update = False)
-                            new_env.reset()   
+                            new_env.reset(seed = seed)   
                 
                         # compute M_rand
                         playerRand = OptimalPlayer(epsilon = 1, player = 0)
@@ -335,7 +333,7 @@ def Q3(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamm
                                 playerQL.player = 0
                             mrand += QL_one_game(playerQL, playerRand, eps = playerQL.epsilon, eps_opt = playerRand.epsilon, 
                                                  alpha = alpha, gamma = gamma, env = new_env, update = False)
-                            new_env.reset()
+                            new_env.reset(seed = seed)
                     Mrand[i // step] += mrand / (500 * 5)
                     Mopt[i // step] += mopt / (500 * 5)
                 
@@ -559,8 +557,8 @@ def Q7(Eps, nb_games = 20000, alpha = 0.1, gamma = 0.99, step = 250, seed = None
         ax.plot(Steps, Mopt / nb_samples)
         ax2.plot(Steps, Mrand / nb_samples)
         legend.append(r"$\varepsilon = {}$".format(eps))
-        Final_Mopt["{}".format(n_star)] = Mopt[-1] / nb_samples
-        Final_Mrand["{}".format(n_star)] = Mrand[-1] / nb_samples
+        Final_Mopt["{}".format(eps)] = Mopt[-1] / nb_samples
+        Final_Mrand["{}".format(eps)] = Mrand[-1] / nb_samples
     
     ax.legend(legend)
     ax2.legend(legend)
@@ -677,38 +675,47 @@ def Q8(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamm
         plt.savefig('./Data/' + question + '.png')
     return Final_Mopt, Final_Mrand, Final_qvals
             
-def Q10(playerQL, configs = ['100', '120', '002'], question = 'q2-10', save = True):
+def Q10(qval, configs = ['300', '120', '032'], question = 'q2-10', save = True):
     first_config = configs[0]
     second_config = configs[1]
     third_config = configs[2]
-    qval = playerQL.qvals
     fig, axs = plt.subplots(1, 3, figsize = (18, 6))
     ax1 = axs[0]
     ax2 = axs[1]
     ax3 = axs[2]
-    ticks1 = [t for t in qval[first_config].keys()]
+    len1 = len(qval[first_config])
+    len2 = len(qval[second_config])
+    len3 = len(qval[third_config])
+    tick_positions1 = np.linspace(1. / len1 , 1, len1, endpoint = False)
+    tick_positions2 = np.linspace(1. / len2 , 1, len2, endpoint = False)
+    tick_positions3 = np.linspace(1. / len3 , 1, len3, endpoint = False)
+    
+    tick_labels1 = [t for t in qval[first_config].keys()]
     qvals1 = [q for q in qval[first_config].values()]
-    ax1.set_xticks(ticks1)
+    ax1.set_xticks(tick_positions1)
+    ax1.set_xticklabels(tick_labels1)
     ax1.set_xlabel('Possible future configurations')
     ax1.set_ylabel('Q-values')
     ax1.set_title('Current configuration: ' + str(first_config[0]) + ' | ' + str(first_config[1]) + ' | ' + str(first_config[2]))
-    ax1.bar(ticks1, qvals1)
+    ax1.bar(tick_positions1, qvals1, width = 1. / (2 * len1))
     
-    ticks2 = [t for t in qval[second_config].keys()]
+    tick_labels2 = [t for t in qval[second_config].keys()]
     qvals2 = [q for q in qval[second_config].values()]
-    ax2.set_xticks(ticks2)
+    ax2.set_xticks(tick_positions2)
+    ax2.set_xticklabels(tick_labels2)
     ax2.set_xlabel('Possible future configurations')
     ax2.set_ylabel('Q-values')
     ax2.set_title('Current configuration: ' + str(second_config[0]) + ' | ' + str(second_config[1]) + ' | ' + str(second_config[2]))
-    ax2.bar(ticks2, qvals2)
+    ax2.bar(tick_positions2, qvals2, width = 1. / (2 * len2))
     
-    ticks3 = [t for t in qval[third_config].keys()]
+    tick_labels3 = [t for t in qval[third_config].keys()]
     qvals3 = [q for q in qval[third_config].values()]
-    ax3.set_xticks(ticks3)
+    ax3.set_xticks(tick_positions3)
+    ax3.set_xticklabels(tick_labels3)
     ax3.set_xlabel('Possible future configurations')
     ax3.set_ylabel('Q-values')
     ax3.set_title('Current configuration: ' + str(third_config[0]) + ' | ' + str(third_config[1]) + ' | ' + str(third_config[2]))
-    ax3.bar(ticks3, qvals3)
+    ax3.bar(tick_positions3, qvals3, width = 1. / (2 * len3))
 
     if save:
         fig.savefig('./Data/' + question + '.png')
