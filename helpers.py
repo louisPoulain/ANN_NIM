@@ -5,6 +5,13 @@ import matplotlib.pyplot as plt
 from nim_env import NimEnv, OptimalPlayer, QL_Player
 import WarningFunctions as wf
 import warnings
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torch.nn.functional as F
+import random
+from collections import namedtuple, deque
+
 
 plt.rc('text', usetex=True)
 plt.rc('font', family='serif')
@@ -12,6 +19,9 @@ plt.rc('font', size=11)
 plt.rc('axes',titlesize=20)
 plt.rc('legend',fontsize=11)
 plt.rc('figure',titlesize=20)
+
+# if gpu is to be used
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def QL_one_game(playerQL, playerOpt, eps, eps_opt, alpha, gamma, env, update = True):
     """
@@ -713,9 +723,246 @@ def Q10(playerQL, configs = ['100', '120', '002'], question = 'q2-10', save = Tr
     if save:
         fig.savefig('./Data/' + question + '.png')
     
-    
-    
-    
-    
-    
 
+
+Transition = namedtuple('Transition',
+                        ('state', 'action', 'next_state', 'reward'))
+#next state here consists of the next state the DQN player can play; i.e. not the next state that the game has, but the one after. 
+
+class ReplayMemory(object):
+    def __init__(self, capacity):
+        self.memory = deque([],maxlen=capacity)
+
+    def push(self, *args):
+        """Save a transition"""
+        self.memory.append(Transition(*args))
+
+    def sample(self, batch_size):
+        random.seed()
+        return random.sample(self.memory, batch_size)
+
+    def __len__(self):
+        return len(self.memory)
+
+
+def to_input(heaps):
+    #change the format of the heaps so that it can be used as an input for the neural network, i.e. converts it to a array of size 9 (binary numbers)
+    init_state = torch.zeros(9, device = device)
+    for i in range(3):
+        state = bin(heaps[i])[2:]
+        j = 0 
+        while j < len(state):
+            init_state[i*3 + 2 - j] = np.int16(state[len(state) - 1 - j])
+            j += 1
+    return init_state.clone().detach()
+
+class DQN(nn.Module):
+    def __init__(self):
+        super(DQN, self).__init__()
+        self.fc1 = nn.Linear(9, 128)
+        self.fc2 = nn.Linear(128, 128)
+        self.fc3 = nn.Linear(128, 21)
+
+    def forward(self, x):
+        x = (x.to(device))
+        x = x.view(-1, 9)
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
+        return x
+
+
+def DQN_one_game(playerDQN, playerOpt, env, update = True):
+    heaps, _, _ = env.observe()
+    loss = None
+    j = 0
+    reward = torch.tensor([-1], device=device)
+    while not env.end:
+        if env.current_player == playerOpt.player:
+            move = playerOpt.act(heaps)
+            heaps, _, _ = env.step(move)
+            if j > 0 and update == True:
+                # Store the transition in memory
+                reward = torch.tensor([env.reward(player = playerDQN.player)], device=device)
+                next_state = to_input(heaps)
+                playerDQN.memory_push(state_DQN, move_DQN, next_state = next_state, reward = reward)
+                loss = playerDQN.optimize()
+        else: 
+            move_DQN = playerDQN.act(heaps)
+            state_DQN = to_input(heaps)
+            is_available = env.check_valid(move_DQN)
+            if not is_available: 
+                #if the action is not valid, we give the agent a negative reward
+                reward = torch.tensor([-1], device=device)
+                next_state = None
+                playerDQN.memory_push(state_DQN, move_DQN, next_state, reward)
+                loss = playerDQN.optimize()
+                env.end == True
+            else : #if the action is valid, we make a step
+                heaps, done, _ = env.step(move_DQN)
+                if done: #if the game is finished (done == True), then we give the agent a reward of 1.
+                    next_state = None
+                    reward = torch.tensor([1], device=device)
+                    playerDQN.memory_push(state_DQN, move_DQN, next_state, reward)
+                    loss = playerDQN.optimize()
+              
+        j += 1
+    playerDQN.update_target()
+    return reward, loss  
+    
+def Q11(policy_net, target_net, memory, nb_games = 20000, eps = 0.1, eps_opt = 0.5, step = 250, seed = None, question = 'q3-11'):
+    Rewards = np.zeros(int(nb_games / step))
+    Steps = np.zeros(int(nb_games / step))
+    Losses = np.zeros(int(nb_games / step))
+    total_reward = 0.0
+    total_loss = 0.0
+    env = NimEnv(seed = seed)
+    playerOpt = OptimalPlayer(epsilon = eps_opt, player = 0)
+    playerDQN = DQN_Player(player = 1, policy_net = policy_net, target_net= target_net, memory=memory, EPS_GREEDY = eps) 
+    for i in range(nb_games):
+        if i%step ==0:
+            print('New game : ', i)
+        # switch turns at every game
+        if i % 2 == 0:
+            playerOpt.player = 0
+            playerDQN.player = 1
+        else:
+            playerOpt.player = 1
+            playerDQN.player = 0
+        
+        new_reward, new_loss = DQN_one_game(playerDQN, playerOpt, env)
+        total_reward += new_reward
+        if new_loss != None: #the loss might be None if the opt. player directly wins.
+            total_loss += new_loss
+        if i % step == step - 1:
+            Rewards[i // step] += total_reward / step
+            Losses[i // step] += total_loss / step
+            Steps[i // step] = i
+            total_reward = 0.0
+            total_loss = 0.0
+
+        env.reset(seed = seed)
+
+    plt.figure(figsize = (9, 8))
+    plt.plot(Steps, Rewards)
+    plt.title('Evolution of average reward every 250 games')
+    plt.xlabel('Number of games played')
+    plt.ylabel('Average reward for QL-player')
+    plt.savefig('./Data/' + question + '_rewards.png')
+    plt.show()
+
+    plt.figure(figsize = (9, 8))
+    plt.plot(Steps, Losses)
+    plt.title('Evolution of average loss every 250 games')
+    plt.xlabel('Number of games played')
+    plt.ylabel('Average loss for QL-player')
+    plt.savefig('./Data/' + question + '_losses.png')
+    plt.show()
+
+
+
+class DQN_Player(OptimalPlayer):
+    def __init__(self, player, policy_net, target_net, memory : ReplayMemory, EPS_GREEDY = 0.2, GAMMA = 0.99, buffer_size = 10000, BATCH_SIZE = 64, TARGET_UPDATE = 500):
+        super(DQN_Player, self).__init__(player = player)
+        self.policy_net = policy_net
+        self.target_net = target_net
+        self.memory = memory
+        self.player = player
+        self.EPS_GREEDY = EPS_GREEDY
+        self.GAMMA = GAMMA
+        self.buffer_size = buffer_size
+        self.BATCH_SIZE = BATCH_SIZE
+        self.TARGET_UPDATE = TARGET_UPDATE
+        self.count = 0 #to count when to update target_net.
+
+        self.optimizer = optim.Adam(policy_net.parameters(), lr = 1e-4)
+
+        
+    def QL_Move(self, heaps):
+        state = to_input(heaps)
+        global steps_done
+        random.seed()
+        sample = random.random()
+        #espilon greedy :
+        if sample > self.EPS_GREEDY: 
+            with torch.no_grad():
+                q = self.policy_net(state) #size 21
+                #pick the action with the highest reward
+                argmax = torch.argmax(q)
+                result = torch.tensor([argmax.div(7, rounding_mode="floor")+1, torch.remainder(argmax, 7)+1], device = device)
+                return result
+        else:
+            #available heaps
+            H = torch.tensor([False, False, False])
+            H[torch.tensor(heaps) > 0] = True
+            #choose a random heap (which is available)
+            random.seed()
+            h =random.choice(torch.arange(1,4)[H])
+            N_max = heaps[h-1]
+            #choose a random number of sticks
+            random.seed()
+            n = random.choice(torch.arange(1,N_max + 1))
+            result = torch.tensor([h, n], device = device)
+            return result
+           
+    def act(self, heaps, **kwargs):
+        return self.QL_Move(heaps)
+
+    def optimize(self):
+        if len(self.memory) < self.BATCH_SIZE:
+            return
+        transitions = self.memory.sample(self.BATCH_SIZE)
+        #This converts batch-array of Transitions to Transition of batch-arrays.
+        batch = Transition(*zip(*transitions))    
+
+        # Compute a mask of non-final states and concatenate the batch elements
+        non_final_mask = torch.tensor(tuple(map(lambda s: s is not None,
+                                            batch.next_state)), device=device, dtype=torch.bool)
+        if [s for s in batch.next_state if s is not None] : #is false if the list is empty
+            non_final_next_states = torch.cat([s for s in batch.next_state
+                                                    if s is not None])
+        else : #if there is no non-final next states
+            non_final_next_states = torch.empty(0) 
+        state_batch = torch.cat(batch.state)
+        action_batch = torch.cat(batch.action)
+        reward_batch = torch.cat(batch.reward)
+
+        # Compute Q(s_t, a) - the model computes Q(s_t), then we select the
+        # columns of actions taken. These are the actions which would've been taken
+        # for each batch state according to policy_net
+        state_action_values = self.policy_net(state_batch) #64 x 21
+        state_action_values = state_action_values.gather(1, ((action_batch[::2]-1)*7+(action_batch[1::2]-1)).view(self.BATCH_SIZE, 1)) #64 x 1
+
+        # Compute V(s_{t+1}) for all next states.
+        # Expected values of actions for non_final_next_states are computed based
+        # on the "older" target_net; selecting their best reward with max(1)[0].
+        # This is merged based on the mask, such that we'll have either the expected
+        # state value or 0 in case the state was final.
+        next_state_values = torch.zeros(self.BATCH_SIZE, device=device)
+        if len(non_final_next_states) > 0 :
+            next_state_values[non_final_mask] = self.target_net(non_final_next_states).max(1)[0].detach() 
+            # max(1) : take the maximum per batch on the 21 possibilities. [0]: take the max and not the argmax
+                
+        # Compute the expected Q values
+        expected_state_action_values = (next_state_values * self.GAMMA) + reward_batch  #64
+
+        # Compute Huber loss
+        criterion = nn.HuberLoss()
+        loss = criterion(state_action_values.squeeze(), expected_state_action_values.detach())
+
+        # Optimize the model
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+        return loss.item()
+    
+    def update_target(self):
+        #count the number of games played by the DQN player and update the target_net after TARGET_UPDATE games.
+        self.count += 1
+        if self.count == self.TARGET_UPDATE:
+            self.target_net.load_state_dict(self.policy_net.state_dict())
+            self.count = 0
+
+    def memory_push(self, state, action, next_state, reward): 
+        #push the transition in the memory buffer
+        self.memory.push(state, action, next_state, reward)
