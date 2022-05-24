@@ -23,6 +23,8 @@ plt.rc('figure',titlesize=20)
 # if gpu is to be used
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+
+
 def QL_one_game(playerQL, playerOpt, eps, eps_opt, alpha, gamma, env, update = True):
     """
     Implementation of one game of NIM between a Q-learning player (after: QL player) and an optimal player.
@@ -59,7 +61,7 @@ def QL_one_game(playerQL, playerOpt, eps, eps_opt, alpha, gamma, env, update = T
             move = playerQL.act(heaps)
             heaps, end, winner = env.step(move)
             heaps_afterQL_plays = heaps.copy()
-            if env.end: # otherwise when QL wins, its Q-values are not updated
+            if env.end and update == True: # otherwise when QL wins, its Q-values are not updated
                 playerQL.update_qval(env_before_QLplays = heaps_beforeQL_move, env_after_QLplays = heaps_afterQL_plays, 
                                     env_after_other_plays = heaps_beforeQL_move, env = env, alpha = alpha, gamma = gamma)
         i += 1
@@ -112,7 +114,7 @@ def QL_one_game_vs_self(playerQL, eps, alpha, gamma, env, update = True):
                 playerQL.update_qval(env_before_QLplays = heaps_beforeQL1, env_after_QLplays = heaps_after_QL1_plays, 
                                     env_after_other_plays = heaps_after_QL2_plays, env = env, alpha = alpha, gamma = gamma)
             
-        if env.end: # we update Q-values for both players
+        if env.end and update == True: # we update Q-values for both players
             if env.current_player == 0: # player 1 has won
                 playerQL.player = 0 
                 playerQL.update_qval(env_before_QLplays = heaps_beforeQL2, env_after_QLplays = heaps_after_QL2_plays, 
@@ -179,7 +181,7 @@ def Q1(nb_games = 20000, eps = 0.1, eps_opt = 0.5, alpha = 0.1, gamma = 0.99, st
                 Rewards[i // step] += total_reward / step
                 Steps[i // step] = i
                 total_reward = 0.0
-            env.reset()
+            env.reset(seed = seed)
     Rewards = Rewards / nb_samples
     plt.plot(Steps, Rewards)
     plt.title('Evolution of average reward every 250 games')
@@ -293,7 +295,6 @@ def Q3(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamm
     for j, n_star in enumerate(N_star):
         Mopt = np.zeros(int(nb_games / step))
         Mrand = np.zeros(int(nb_games / step))
-        Rewards = []
         Steps = np.zeros(int(nb_games / step))
         for l in range(nb_samples):
             total_reward = 0.0
@@ -314,12 +315,11 @@ def Q3(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamm
                 total_reward += QL_one_game(playerQL, playerOpt, eps = playerQL.epsilon, eps_opt = playerOpt.epsilon, 
                                         alpha = alpha, gamma = gamma, env = env)
                 if i % step == step - 1:
-                    Rewards.append(total_reward / step)
                     Steps[i // step] = i
                     total_reward = 0.0
                     mopt = 0
                     mrand = 0
-                    new_env = NimEnv()
+                    new_env = NimEnv(seed = seed)
                     for m in range(5):  # here we run for several different seeds
                         # compute M_opt
                         new_playerOpt = OptimalPlayer(epsilon = 0, player = 0)
@@ -332,7 +332,7 @@ def Q3(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamm
                                 playerQL.player = 0
                             mopt += QL_one_game(playerQL, new_playerOpt, eps = playerQL.epsilon, eps_opt = new_playerOpt.epsilon, 
                                                 alpha = alpha, gamma = gamma, env = new_env, update = False)
-                            new_env.reset()   
+                            new_env.reset(seed = seed)   
                 
                         # compute M_rand
                         playerRand = OptimalPlayer(epsilon = 1, player = 0)
@@ -345,7 +345,7 @@ def Q3(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamm
                                 playerQL.player = 0
                             mrand += QL_one_game(playerQL, playerRand, eps = playerQL.epsilon, eps_opt = playerRand.epsilon, 
                                                  alpha = alpha, gamma = gamma, env = new_env, update = False)
-                            new_env.reset()
+                            new_env.reset(seed = seed)
                     Mrand[i // step] += mrand / (500 * 5)
                     Mopt[i // step] += mopt / (500 * 5)
                 
@@ -569,8 +569,8 @@ def Q7(Eps, nb_games = 20000, alpha = 0.1, gamma = 0.99, step = 250, seed = None
         ax.plot(Steps, Mopt / nb_samples)
         ax2.plot(Steps, Mrand / nb_samples)
         legend.append(r"$\varepsilon = {}$".format(eps))
-        Final_Mopt["{}".format(n_star)] = Mopt[-1] / nb_samples
-        Final_Mrand["{}".format(n_star)] = Mrand[-1] / nb_samples
+        Final_Mopt["{}".format(eps)] = Mopt[-1] / nb_samples
+        Final_Mrand["{}".format(eps)] = Mrand[-1] / nb_samples
     
     ax.legend(legend)
     ax2.legend(legend)
@@ -687,43 +687,54 @@ def Q8(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamm
         plt.savefig('./Data/' + question + '.png')
     return Final_Mopt, Final_Mrand, Final_qvals
             
-def Q10(playerQL, configs = ['100', '120', '002'], question = 'q2-10', save = True):
+def Q10(qval, configs = ['300', '120', '032'], question = 'q2-10', save = True):
     first_config = configs[0]
     second_config = configs[1]
     third_config = configs[2]
-    qval = playerQL.qvals
     fig, axs = plt.subplots(1, 3, figsize = (18, 6))
     ax1 = axs[0]
     ax2 = axs[1]
     ax3 = axs[2]
-    ticks1 = [t for t in qval[first_config].keys()]
+    len1 = len(qval[first_config])
+    len2 = len(qval[second_config])
+    len3 = len(qval[third_config])
+    tick_positions1 = np.linspace(1. / len1 , 1, len1, endpoint = False)
+    tick_positions2 = np.linspace(1. / len2 , 1, len2, endpoint = False)
+    tick_positions3 = np.linspace(1. / len3 , 1, len3, endpoint = False)
+    
+    tick_labels1 = [t for t in qval[first_config].keys()]
     qvals1 = [q for q in qval[first_config].values()]
-    ax1.set_xticks(ticks1)
+    ax1.set_xticks(tick_positions1)
+    ax1.set_xticklabels(tick_labels1)
     ax1.set_xlabel('Possible future configurations')
     ax1.set_ylabel('Q-values')
     ax1.set_title('Current configuration: ' + str(first_config[0]) + ' | ' + str(first_config[1]) + ' | ' + str(first_config[2]))
-    ax1.bar(ticks1, qvals1)
+    ax1.bar(tick_positions1, qvals1, width = 1. / (2 * len1))
     
-    ticks2 = [t for t in qval[second_config].keys()]
+    tick_labels2 = [t for t in qval[second_config].keys()]
     qvals2 = [q for q in qval[second_config].values()]
-    ax2.set_xticks(ticks2)
+    ax2.set_xticks(tick_positions2)
+    ax2.set_xticklabels(tick_labels2)
     ax2.set_xlabel('Possible future configurations')
     ax2.set_ylabel('Q-values')
     ax2.set_title('Current configuration: ' + str(second_config[0]) + ' | ' + str(second_config[1]) + ' | ' + str(second_config[2]))
-    ax2.bar(ticks2, qvals2)
+    ax2.bar(tick_positions2, qvals2, width = 1. / (2 * len2))
     
-    ticks3 = [t for t in qval[third_config].keys()]
+    tick_labels3 = [t for t in qval[third_config].keys()]
     qvals3 = [q for q in qval[third_config].values()]
-    ax3.set_xticks(ticks3)
+    ax3.set_xticks(tick_positions3)
+    ax3.set_xticklabels(tick_labels3)
     ax3.set_xlabel('Possible future configurations')
     ax3.set_ylabel('Q-values')
     ax3.set_title('Current configuration: ' + str(third_config[0]) + ' | ' + str(third_config[1]) + ' | ' + str(third_config[2]))
-    ax3.bar(ticks3, qvals3)
+    ax3.bar(tick_positions3, qvals3, width = 1. / (2 * len3))
 
     if save:
         fig.savefig('./Data/' + question + '.png')
-    
 
+
+    
+#------------- helpers for DQN part ----------
 
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
@@ -770,95 +781,6 @@ class DQN(nn.Module):
         x = F.relu(self.fc2(x))
         x = self.fc3(x)
         return x
-
-
-def DQN_one_game(playerDQN, playerOpt, env, update = True):
-    heaps, _, _ = env.observe()
-    loss = None
-    j = 0
-    reward = torch.tensor([-1], device=device)
-    while not env.end:
-        if env.current_player == playerOpt.player:
-            move = playerOpt.act(heaps)
-            heaps, _, _ = env.step(move)
-            if j > 0 and update == True:
-                # Store the transition in memory
-                reward = torch.tensor([env.reward(player = playerDQN.player)], device=device)
-                next_state = to_input(heaps)
-                playerDQN.memory_push(state_DQN, move_DQN, next_state = next_state, reward = reward)
-                loss = playerDQN.optimize()
-        else: 
-            move_DQN = playerDQN.act(heaps)
-            state_DQN = to_input(heaps)
-            is_available = env.check_valid(move_DQN)
-            if not is_available: 
-                #if the action is not valid, we give the agent a negative reward
-                reward = torch.tensor([-1], device=device)
-                next_state = None
-                playerDQN.memory_push(state_DQN, move_DQN, next_state, reward)
-                loss = playerDQN.optimize()
-                env.end == True
-            else : #if the action is valid, we make a step
-                heaps, done, _ = env.step(move_DQN)
-                if done: #if the game is finished (done == True), then we give the agent a reward of 1.
-                    next_state = None
-                    reward = torch.tensor([1], device=device)
-                    playerDQN.memory_push(state_DQN, move_DQN, next_state, reward)
-                    loss = playerDQN.optimize()
-              
-        j += 1
-    playerDQN.update_target()
-    return reward, loss  
-    
-def Q11(policy_net, target_net, memory, nb_games = 20000, eps = 0.1, eps_opt = 0.5, step = 250, seed = None, question = 'q3-11'):
-    Rewards = np.zeros(int(nb_games / step))
-    Steps = np.zeros(int(nb_games / step))
-    Losses = np.zeros(int(nb_games / step))
-    total_reward = 0.0
-    total_loss = 0.0
-    env = NimEnv(seed = seed)
-    playerOpt = OptimalPlayer(epsilon = eps_opt, player = 0)
-    playerDQN = DQN_Player(player = 1, policy_net = policy_net, target_net= target_net, memory=memory, EPS_GREEDY = eps) 
-    for i in range(nb_games):
-        if i%step ==0:
-            print('New game : ', i)
-        # switch turns at every game
-        if i % 2 == 0:
-            playerOpt.player = 0
-            playerDQN.player = 1
-        else:
-            playerOpt.player = 1
-            playerDQN.player = 0
-        
-        new_reward, new_loss = DQN_one_game(playerDQN, playerOpt, env)
-        total_reward += new_reward
-        if new_loss != None: #the loss might be None if the opt. player directly wins.
-            total_loss += new_loss
-        if i % step == step - 1:
-            Rewards[i // step] += total_reward / step
-            Losses[i // step] += total_loss / step
-            Steps[i // step] = i
-            total_reward = 0.0
-            total_loss = 0.0
-
-        env.reset(seed = seed)
-
-    plt.figure(figsize = (9, 8))
-    plt.plot(Steps, Rewards)
-    plt.title('Evolution of average reward every 250 games')
-    plt.xlabel('Number of games played')
-    plt.ylabel('Average reward for QL-player')
-    plt.savefig('./Data/' + question + '_rewards.png')
-    plt.show()
-
-    plt.figure(figsize = (9, 8))
-    plt.plot(Steps, Losses)
-    plt.title('Evolution of average loss every 250 games')
-    plt.xlabel('Number of games played')
-    plt.ylabel('Average loss for QL-player')
-    plt.savefig('./Data/' + question + '_losses.png')
-    plt.show()
-
 
 
 class DQN_Player(OptimalPlayer):
@@ -966,3 +888,226 @@ class DQN_Player(OptimalPlayer):
     def memory_push(self, state, action, next_state, reward): 
         #push the transition in the memory buffer
         self.memory.push(state, action, next_state, reward)
+
+def DQN_one_game(playerDQN, playerOpt, env, update = True):
+    heaps, _, _ = env.observe()
+    loss = None
+    j = 0
+    reward = torch.tensor([-1], device=device)
+    while not env.end:
+        if env.current_player == playerOpt.player:
+            move = playerOpt.act(heaps)
+            heaps, _, _ = env.step(move)
+            if j > 0 and update == True:
+                # Store the transition in memory
+                reward = torch.tensor([env.reward(player = playerDQN.player)], device=device)
+                next_state = to_input(heaps)
+                playerDQN.memory_push(state_DQN, move_DQN, next_state = next_state, reward = reward)
+                loss = playerDQN.optimize()
+        else: 
+            move_DQN = playerDQN.act(heaps)
+            state_DQN = to_input(heaps)
+            is_available = env.check_valid(move_DQN)
+            if not is_available: 
+                #if the action is not valid, we give the agent a negative reward
+                reward = torch.tensor([-1], device=device)
+                next_state = None
+                playerDQN.memory_push(state_DQN, move_DQN, next_state, reward)
+                loss = playerDQN.optimize()
+                env.end == True
+            else : #if the action is valid, we make a step
+                heaps, done, _ = env.step(move_DQN)
+                if done: #if the game is finished (done == True), then we give the agent a reward of 1.
+                    next_state = None
+                    reward = torch.tensor([1], device=device)
+                    playerDQN.memory_push(state_DQN, move_DQN, next_state, reward)
+                    loss = playerDQN.optimize()
+              
+        j += 1
+    playerDQN.update_target()
+    return reward, loss  
+    
+def Q11(policy_net, target_net, memory, nb_games = 20000, eps = 0.1, eps_opt = 0.5, step = 250, GAMMA = 0.99, buffer_size = 10000, BATCH_SIZE = 64, TARGET_UPDATE = 500, seed = None, question = 'q3-11'):
+    Rewards = np.zeros(int(nb_games / step))
+    Steps = np.zeros(int(nb_games / step))
+    Losses = np.zeros(int(nb_games / step))
+    total_reward = 0.0
+    total_loss = 0.0
+    env = NimEnv(seed = seed)
+    playerOpt = OptimalPlayer(epsilon = eps_opt, player = 0)
+    playerDQN = DQN_Player(player = 1, policy_net = policy_net, target_net= target_net, memory=memory, EPS_GREEDY = eps, GAMMA = GAMMA, buffer_size = buffer_size, BATCH_SIZE = BATCH_SIZE, TARGET_UPDATE = TARGET_UPDATE) 
+    for i in range(nb_games):
+        if i%step ==0:
+            print('New game : ', i)
+        # switch turns at every game
+        if i % 2 == 0:
+            playerOpt.player = 0
+            playerDQN.player = 1
+        else:
+            playerOpt.player = 1
+            playerDQN.player = 0
+        
+        new_reward, new_loss = DQN_one_game(playerDQN, playerOpt, env)
+        total_reward += new_reward
+        if new_loss != None: #the loss might be None if the opt. player directly wins.
+            total_loss += new_loss
+        if i % step == step - 1:
+            Rewards[i // step] += total_reward / step
+            Losses[i // step] += total_loss / step
+            Steps[i // step] = i
+            total_reward = 0.0
+            total_loss = 0.0
+
+        env.reset(seed = seed)
+
+    plt.figure(figsize = (9, 8))
+    plt.plot(Steps, Rewards)
+    plt.title('Evolution of average reward every 250 games')
+    plt.xlabel('Number of games played')
+    plt.ylabel('Average reward for QL-player')
+    plt.savefig('./Data/' + question + '_rewards.png')
+    plt.show()
+
+    plt.figure(figsize = (9, 8))
+    plt.plot(Steps, Losses)
+    plt.title('Evolution of average loss every 250 games')
+    plt.xlabel('Number of games played')
+    plt.ylabel('Average loss for QL-player')
+    plt.savefig('./Data/' + question + '_losses.png')
+    plt.show()
+
+
+
+class Memory_Q12(object):
+    #without the replay buffer and with a batch size of 1. At every step,  we will update the network by using only the latest transition.
+    def __init__(self):
+        self.state = None
+        self.action = None
+        self.next_state = None
+        self.reward = None
+
+    def push(self, state, action, next_state, reward):
+        """Save a transition"""
+        self.state = state
+        self.action = action
+        self.next_state = next_state
+        self.reward = reward
+
+
+class DQN_Player_no_RB(DQN_Player):
+    def __init__(self, player: int, policy_net : DQN(), target_net : DQN(), memory : Memory_Q12(), EPS_GREEDY: float = 0.2, GAMMA : float = 0.99, buffer_size: int = 10000, BATCH_SIZE: int = 1, TARGET_UPDATE: int = 500):
+        #here memory is not a replay buffer, but can just contain the latest transition.
+        super(DQN_Player, self).__init__(player = player)
+        self.policy_net = policy_net
+        self.target_net = target_net
+        self.memory = memory
+        self.player = player
+        self.EPS_GREEDY = EPS_GREEDY
+        self.GAMMA = GAMMA
+        self.buffer_size = buffer_size
+        self.BATCH_SIZE = BATCH_SIZE
+        self.TARGET_UPDATE = TARGET_UPDATE
+        self.count = 0 #to count when to update target_net.
+
+        self.optimizer = optim.Adam(policy_net.parameters(), lr = 1e-4)
+
+    def optimize(self):   
+        #the batch consist of the memory (of size 1)     
+        batch = self.memory 
+        # Compute a mask of non-final states and concatenate the batch elements
+        non_final_mask = torch.tensor(batch.next_state != None)
+        #non_final_mask = torch.tensor(tuple(map(lambda s: s is not None, batch.next_state)), device=device, dtype=torch.bool)
+        if batch.next_state != None : #is false if the list is empty
+            non_final_next_states = batch.next_state
+        else : #if there is no non-final next states
+            non_final_next_states = torch.empty(0) 
+
+        state_batch = batch.state
+        action_batch = batch.action
+        reward_batch = batch.reward
+
+        # Compute Q(s_t, a) - the model computes Q(s_t), then we select the
+        # columns of actions taken. These are the actions which would've been taken
+        # for each batch state according to policy_net
+        state_action_values = self.policy_net(state_batch) #64 x 21
+        state_action_values = state_action_values.gather(1, ((action_batch[::2]-1)*7+(action_batch[1::2]-1)).view(self.BATCH_SIZE, 1)) #Batch_size x 1
+
+        # Compute V(s_{t+1}) for all next states.
+        # Expected values of actions for non_final_next_states are computed based
+        # on the "older" target_net; selecting their best reward with max(1)[0].
+        # This is merged based on the mask, such that we'll have either the expected
+        # state value or 0 in case the state was final.
+        next_state_values = torch.zeros(self.BATCH_SIZE, device=device)
+        if len(non_final_next_states) > 0 :
+            next_state_values[non_final_mask] = self.target_net(non_final_next_states).max(1)[0].detach() 
+            # max(1) : take the maximum per batch on the 21 possibilities. [0]: take the max and not the argmax
+                
+        # Compute the expected Q values
+        expected_state_action_values = (next_state_values * self.GAMMA) + reward_batch  #64
+
+        # Compute Huber loss
+        criterion = nn.HuberLoss()
+        loss = criterion(state_action_values.squeeze(), expected_state_action_values.detach())
+
+        # Optimize the model
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+        return loss.item()
+
+
+    def memory_push(self, state, action, next_state, reward): 
+        #push the transition in the memory buffer
+        self.memory.push(state, action, next_state, reward)
+
+
+
+
+def Q12(policy_net : DQN(), target_net : DQN(), memory : Memory_Q12(), nb_games : int = 20000, eps : float = 0.1, eps_opt : float = 0.5, step : int = 250, GAMMA : float = 0.99, buffer_size: int = 10000, BATCH_SIZE: int = 1, TARGET_UPDATE: int = 500, seed = None, question : str = 'q3-12'):
+    Rewards = np.zeros(int(nb_games / step))
+    Steps = np.zeros(int(nb_games / step))
+    Losses = np.zeros(int(nb_games / step))
+    total_reward = 0.0
+    total_loss = 0.0
+    env = NimEnv(seed = seed)
+    playerOpt = OptimalPlayer(epsilon = eps_opt, player = 0)
+    playerDQN = DQN_Player_no_RB(player = 1, policy_net = policy_net, target_net= target_net, memory=memory, EPS_GREEDY = eps, GAMMA = GAMMA, buffer_size = buffer_size, BATCH_SIZE = BATCH_SIZE, TARGET_UPDATE = TARGET_UPDATE) 
+    for i in range(nb_games):
+        if i%step ==0:
+            print('New game : ', i)
+        # switch turns at every game
+        if i % 2 == 0:
+            playerOpt.player = 0
+            playerDQN.player = 1
+        else:
+            playerOpt.player = 1
+            playerDQN.player = 0
+        
+        new_reward, new_loss = DQN_one_game(playerDQN, playerOpt, env)
+        total_reward += new_reward
+        if new_loss != None: #the loss might be None if the opt. player directly wins.
+            total_loss += new_loss
+        if i % step == step - 1:
+            Rewards[i // step] += total_reward / step
+            Losses[i // step] += total_loss / step
+            Steps[i // step] = i
+            total_reward = 0.0
+            total_loss = 0.0
+
+        env.reset(seed = seed)
+
+    plt.figure(figsize = (9, 8))
+    plt.plot(Steps, Rewards)
+    plt.title('Evolution of average reward every 250 games')
+    plt.xlabel('Number of games played')
+    plt.ylabel('Average reward for QL-player')
+    plt.savefig('./Data/' + question + '_rewards.png')
+    plt.show()
+
+    plt.figure(figsize = (9, 8))
+    plt.plot(Steps, Losses)
+    plt.title('Evolution of average loss every 250 games')
+    plt.xlabel('Number of games played')
+    plt.ylabel('Average loss for QL-player')
+    plt.savefig('./Data/' + question + '_losses.png')
+    plt.show()
