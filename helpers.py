@@ -784,7 +784,7 @@ class DQN(nn.Module):
 
 
 class DQN_Player(OptimalPlayer):
-    def __init__(self, player, policy_net, target_net, memory : ReplayMemory, EPS_GREEDY = 0.2,
+    def __init__(self, player, policy_net, target_net, memory : ReplayMemory, EPS_GREEDY = 0.1,
                  GAMMA = 0.99, buffer_size = 10000, BATCH_SIZE = 64, TARGET_UPDATE = 500):
         super(DQN_Player, self).__init__(player = player)
         self.policy_net = policy_net
@@ -844,10 +844,24 @@ class DQN_Player(OptimalPlayer):
         return self.QL_Move(heaps)
     
     def predict(self, heaps):
-        #q-values for each possible action
+        """ predict q values for a given heap
+        input : 
+            - heaps
+        output : 
+            - q-values for each possible action
+        """
         state = to_input(heaps)
         q = self.policy_net(state)
         return q.view(3, -1)
+
+    def save_net(self, question : str = 'q3-0'):
+        """
+        Save the policy net under name the string "question".
+        input : 
+            - question. Default: 'q3-0', dtype: str
+        """
+        PATH = './Data/models/' + question + '.pth'
+        torch.save(self.policy_net.state_dict(), PATH)
 
     def optimize(self):
         if len(self.memory) < self.BATCH_SIZE:
@@ -1004,6 +1018,7 @@ def Q11(policy_net, target_net, memory, nb_games = 20000, eps = 0.1, eps_opt = 0
     plt.ylabel('Average loss for DQN-player')
     if save :
         plt.savefig('./Data/' + question + '_losses' + str(nb_samples) + 'samples.png')
+        playerDQN.save_net(question)
     plt.show()
 
 
