@@ -784,7 +784,8 @@ class DQN(nn.Module):
 
 
 class DQN_Player(OptimalPlayer):
-    def __init__(self, player, policy_net, target_net, memory : ReplayMemory, EPS_GREEDY = 0.2, GAMMA = 0.99, buffer_size = 10000, BATCH_SIZE = 64, TARGET_UPDATE = 500):
+    def __init__(self, player, policy_net, target_net, memory : ReplayMemory, EPS_GREEDY = 0.2,
+                 GAMMA = 0.99, buffer_size = 10000, BATCH_SIZE = 64, TARGET_UPDATE = 500):
         super(DQN_Player, self).__init__(player = player)
         self.policy_net = policy_net
         self.target_net = target_net
@@ -943,45 +944,51 @@ def DQN_one_game(playerDQN, playerOpt, env, update = True): #écrire if update =
         playerDQN.update_target()
     return reward, loss  
     
-def Q11(policy_net, target_net, memory, nb_games = 20000, eps = 0.1, eps_opt = 0.5, step = 250, GAMMA = 0.99, buffer_size = 10000, BATCH_SIZE = 64, TARGET_UPDATE = 500, seed = None, question = 'q3-11'):
+def Q11(policy_net, target_net, memory, nb_games = 20000, eps = 0.1, eps_opt = 0.5, step = 250, GAMMA = 0.99,
+         buffer_size = 10000, BATCH_SIZE = 64, TARGET_UPDATE = 500, seed = None, question = 'q3-11',
+          nb_samples = 5, save = True):
     Rewards = np.zeros(int(nb_games / step))
     Steps = np.zeros(int(nb_games / step))
     Losses = np.zeros(int(nb_games / step))
-    total_reward = 0.0
-    total_loss = 0.0
-    env = NimEnv(seed = seed)
-    playerOpt = OptimalPlayer(epsilon = eps_opt, player = 0)
-    playerDQN = DQN_Player(player = 1, policy_net = policy_net, target_net= target_net, memory=memory, EPS_GREEDY = eps, GAMMA = GAMMA, buffer_size = buffer_size, BATCH_SIZE = BATCH_SIZE, TARGET_UPDATE = TARGET_UPDATE) 
-    for i in range(nb_games):
-        if i%step ==0:
-            print('New game : ', i)
-        # switch turns at every game
-        if i % 2 == 0:
-            playerOpt.player = 0
-            playerDQN.player = 1
-        else:
-            playerOpt.player = 1
-            playerDQN.player = 0
-        
-        new_reward, new_loss = DQN_one_game(playerDQN, playerOpt, env)
-        total_reward += new_reward
-        if new_loss != None: #the loss might be None if the opt. player directly wins.
-            total_loss += new_loss
-        if i % step == step - 1:
-            Rewards[i // step] += total_reward / step
-            Losses[i // step] += total_loss / step
-            Steps[i // step] = i
-            total_reward = 0.0
-            total_loss = 0.0
+    for s in range(nb_samples):
+        total_reward = 0.0
+        total_loss = 0.0
+        env = NimEnv(seed = seed)
+        playerOpt = OptimalPlayer(epsilon = eps_opt, player = 0)
+        playerDQN = DQN_Player(player = 1, policy_net = policy_net, target_net= target_net, memory=memory, EPS_GREEDY = eps, GAMMA = GAMMA, buffer_size = buffer_size, BATCH_SIZE = BATCH_SIZE, TARGET_UPDATE = TARGET_UPDATE) 
+        for i in range(nb_games):
+            if i%step ==0:
+                print('New game : ', i)
+            # switch turns at every game
+            if i % 2 == 0:
+                playerOpt.player = 0
+                playerDQN.player = 1
+            else:
+                playerOpt.player = 1
+                playerDQN.player = 0
+            
+            new_reward, new_loss = DQN_one_game(playerDQN, playerOpt, env)
+            total_reward += new_reward
+            if new_loss != None: #the loss might be None if the opt. player directly wins.
+                total_loss += new_loss
+            if i % step == step - 1:
+                Rewards[i // step] += total_reward / step
+                Losses[i // step] += total_loss / step
+                Steps[i // step] = i
+                total_reward = 0.0
+                total_loss = 0.0
 
-        env.reset(seed = seed)
+            env.reset(seed = seed)
+    Rewards = Rewards / nb_samples
+    Losses = Losses / nb_samples
 
     plt.figure(figsize = (9, 8))
     plt.plot(Steps, Rewards)
     plt.title('Evolution of average reward every 250 games')
     plt.xlabel('Number of games played')
     plt.ylabel('Average reward for QL-player')
-    plt.savefig('./Data/' + question + '_rewards.png')
+    if save :
+        plt.savefig('./Data/' + question + '_rewards' + str(nb_samples) + 'samples.png')
     plt.show()
 
     plt.figure(figsize = (9, 8))
@@ -989,7 +996,8 @@ def Q11(policy_net, target_net, memory, nb_games = 20000, eps = 0.1, eps_opt = 0
     plt.title('Evolution of average loss every 250 games')
     plt.xlabel('Number of games played')
     plt.ylabel('Average loss for QL-player')
-    plt.savefig('./Data/' + question + '_losses.png')
+    if save :
+        plt.savefig('./Data/' + question + '_losses' + str(nb_samples) + 'samples.png')
     plt.show()
 
 
@@ -1077,45 +1085,52 @@ class DQN_Player_no_RB(DQN_Player):
         self.memory.push(state, action, next_state, reward)
 
 
-def Q12(policy_net : DQN(), target_net : DQN(), memory : Memory_Q12(), nb_games : int = 20000, eps : float = 0.1, eps_opt : float = 0.5, step : int = 250, GAMMA : float = 0.99, buffer_size: int = 10000, BATCH_SIZE: int = 1, TARGET_UPDATE: int = 500, seed = None, question : str = 'q3-12'):
+def Q12(policy_net : DQN(), target_net : DQN(), memory : Memory_Q12(), nb_games : int = 20000, 
+        eps : float = 0.1, eps_opt : float = 0.5, step : int = 250, GAMMA : float = 0.99, 
+        buffer_size: int = 10000, BATCH_SIZE: int = 1, TARGET_UPDATE: int = 500, seed = None, 
+        question : str = 'q3-12', nb_samples : int = 5, save = True):
     Rewards = np.zeros(int(nb_games / step))
     Steps = np.zeros(int(nb_games / step))
     Losses = np.zeros(int(nb_games / step))
-    total_reward = 0.0
-    total_loss = 0.0
-    env = NimEnv(seed = seed)
-    playerOpt = OptimalPlayer(epsilon = eps_opt, player = 0)
-    playerDQN = DQN_Player_no_RB(player = 1, policy_net = policy_net, target_net= target_net, memory=memory, EPS_GREEDY = eps, GAMMA = GAMMA, buffer_size = buffer_size, BATCH_SIZE = BATCH_SIZE, TARGET_UPDATE = TARGET_UPDATE) 
-    for i in range(nb_games):
-        if i%step ==0:
-            print('New game : ', i)
-        # switch turns at every game
-        if i % 2 == 0:
-            playerOpt.player = 0
-            playerDQN.player = 1
-        else:
-            playerOpt.player = 1
-            playerDQN.player = 0
-        
-        new_reward, new_loss = DQN_one_game(playerDQN, playerOpt, env)
-        total_reward += new_reward
-        if new_loss != None: #the loss might be None if the opt. player directly wins.
-            total_loss += new_loss
-        if i % step == step - 1:
-            Rewards[i // step] += total_reward / step
-            Losses[i // step] += total_loss / step
-            Steps[i // step] = i
-            total_reward = 0.0
-            total_loss = 0.0
+    for s in range(nb_samples):
+        total_reward = 0.0
+        total_loss = 0.0
+        env = NimEnv(seed = seed)
+        playerOpt = OptimalPlayer(epsilon = eps_opt, player = 0)
+        playerDQN = DQN_Player_no_RB(player = 1, policy_net = policy_net, target_net= target_net, memory=memory, EPS_GREEDY = eps, GAMMA = GAMMA, buffer_size = buffer_size, BATCH_SIZE = BATCH_SIZE, TARGET_UPDATE = TARGET_UPDATE) 
+        for i in range(nb_games):
+            if i%step ==0:
+                print('New game : ', i)
+            # switch turns at every game
+            if i % 2 == 0:
+                playerOpt.player = 0
+                playerDQN.player = 1
+            else:
+                playerOpt.player = 1
+                playerDQN.player = 0
+            
+            new_reward, new_loss = DQN_one_game(playerDQN, playerOpt, env)
+            total_reward += new_reward
+            if new_loss != None: #the loss might be None if the opt. player directly wins.
+                total_loss += new_loss
+            if i % step == step - 1:
+                Rewards[i // step] += total_reward / step
+                Losses[i // step] += total_loss / step
+                Steps[i // step] = i
+                total_reward = 0.0
+                total_loss = 0.0
 
-        env.reset(seed = seed)
+            env.reset(seed = seed)
+    Rewards = Rewards / nb_samples
+    Losses = Losses / nb_samples
 
     plt.figure(figsize = (9, 8))
     plt.plot(Steps, Rewards)
     plt.title('Evolution of average reward every 250 games')
     plt.xlabel('Number of games played')
     plt.ylabel('Average reward for QL-player')
-    plt.savefig('./Data/' + question + '_rewards.png')
+    if save :
+        plt.savefig('./Data/' + question + '_rewards' + str(nb_samples) + 'samples.png')
     plt.show()
 
     plt.figure(figsize = (9, 8))
@@ -1123,11 +1138,12 @@ def Q12(policy_net : DQN(), target_net : DQN(), memory : Memory_Q12(), nb_games 
     plt.title('Evolution of average loss every 250 games')
     plt.xlabel('Number of games played')
     plt.ylabel('Average loss for QL-player')
-    plt.savefig('./Data/' + question + '_losses.png')
+    if save :
+        plt.savefig('./Data/' + question + '_losses' + str(nb_samples) + 'samples.png')
     plt.show()
 
 def Q13(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, GAMMA = 0.99, buffer_size = 10000, BATCH_SIZE = 64, TARGET_UPDATE = 500,
-        step = 250, seed = None, question = 'q3-13b', nb_samples = 5, save = True):
+        step = 250, seed = None, question = 'q3-13', nb_samples = 5, save = True):
     
     """
     Implements the solution to the 4th question
@@ -1169,12 +1185,12 @@ def Q13(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, GAMMA = 0.99, bu
             env = NimEnv(seed = seed)
             eps = max(eps_min, eps_max * (1 - 1 / n_star)) 
             playerOpt = OptimalPlayer(epsilon = 0.5, player = 0)
-            policy_net = h.DQN().to(device)
-            target_net = h.DQN().to(device)
+            policy_net = DQN().to(device)
+            target_net = DQN().to(device)
             target_net.load_state_dict(policy_net.state_dict())
             target_net.eval()
-            memory = h.ReplayMemory(buffer_size)
-            playerDQN = h.DQN_Player(player = 1, policy_net = policy_net, target_net= target_net, memory=memory,
+            memory = ReplayMemory(buffer_size)
+            playerDQN = DQN_Player(player = 1, policy_net = policy_net, target_net= target_net, memory=memory,
                                                 EPS_GREEDY = eps, GAMMA = GAMMA, buffer_size = buffer_size, BATCH_SIZE = BATCH_SIZE,
                                                 TARGET_UPDATE = TARGET_UPDATE) 
             
@@ -1187,7 +1203,7 @@ def Q13(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, GAMMA = 0.99, bu
                     playerOpt.player = 1
                     playerDQN.player = 0
 
-                new_reward, _ = h.DQN_one_game(playerDQN, playerOpt, env)
+                new_reward, _ = DQN_one_game(playerDQN, playerOpt, env)
                 total_reward += new_reward
 
                 if i % step == step - 1:
@@ -1207,7 +1223,7 @@ def Q13(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, GAMMA = 0.99, bu
                             else:
                                 new_playerOpt.player = 1
                                 playerDQN.player = 0
-                            new_reward_mopt, _ = h.DQN_one_game(playerDQN, new_playerOpt, new_env, update = False)
+                            new_reward_mopt, _ = DQN_one_game(playerDQN, new_playerOpt, new_env, update = False)
                             mopt += new_reward_mopt
                             new_env.reset()   
                 
@@ -1220,7 +1236,7 @@ def Q13(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, GAMMA = 0.99, bu
                             else:
                                 playerRand.player = 1
                                 playerDQN.player = 0
-                            new_reward_mrand, _ = h.DQN_one_game(playerDQN, playerRand, new_env, update = False)
+                            new_reward_mrand, _ = DQN_one_game(playerDQN, playerRand, new_env, update = False)
                             mrand += new_reward_mrand
                             new_env.reset()
                     Mrand[i // step] += mrand / (500 * 5)
