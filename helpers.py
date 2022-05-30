@@ -2,6 +2,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1 import make_axes_locatable 
 from nim_env import NimEnv, OptimalPlayer, QL_Player
 import WarningFunctions as wf
 import warnings
@@ -741,23 +742,26 @@ Transition = namedtuple('Transition',
 #next state here consists of the next state the DQN player can play; i.e. not the next state that the game has, but the one after. 
 
 class ReplayMemory(object):
+    """Replay buffer. """
     def __init__(self, capacity):
         self.memory = deque([],maxlen=capacity)
 
     def push(self, *args):
-        """Save a transition"""
+        """Save a transition. """
         self.memory.append(Transition(*args))
 
     def sample(self, batch_size):
+        """Sample random batch_size saved transitions. """
         random.seed()
         return random.sample(self.memory, batch_size)
 
     def __len__(self):
+        """Returns the numer of transitions inside the memory. """
         return len(self.memory)
 
 
 def to_input(heaps):
-    #change the format of the heaps so that it can be used as an input for the neural network, i.e. converts it to a array of size 9 (binary numbers)
+    """change the format of the heaps so that it can be used as an input for the neural network, i.e. converts it to a array of size 9 (binary numbers)"""
     init_state = torch.zeros(9, device = device)
     for i in range(3):
         state = bin(heaps[i])[2:]
@@ -768,6 +772,7 @@ def to_input(heaps):
     return init_state.clone().detach()
 
 class DQN(nn.Module):
+    """Neural Network. """
     def __init__(self):
         super(DQN, self).__init__()
         self.fc1 = nn.Linear(9, 128)
@@ -784,8 +789,21 @@ class DQN(nn.Module):
 
 
 class DQN_Player(OptimalPlayer):
-    def __init__(self, player, policy_net, target_net, memory : ReplayMemory, EPS_GREEDY = 0.1,
-                 GAMMA = 0.99, buffer_size = 10000, BATCH_SIZE = 64, TARGET_UPDATE = 500):
+    def __init__(self, player, policy_net : DQN, target_net : DQN, memory : ReplayMemory, EPS_GREEDY : float = 0.1,
+                 GAMMA : float = 0.99, buffer_size : int = 10000, BATCH_SIZE : int = 64, TARGET_UPDATE : int = 500):
+        """
+        Implements the DQN player for part 3 "Deep Q-Learning".
+        inputs: 
+        - player : 0 or 1, indicates the player's turn
+        - policy_net : the policy network of the DQN player. dtype : DQN
+        - target_net : the target network of the DQN player. dtype : DQN
+        - memory : memory of the DQN player. dtype : Replaymemory
+        - EPS_GREEDY: espilon associated to the DQN-player (probability of playing at random, i.e. epsilon-greedy) Default: 0.1, dtype: float
+        - GAMMA : discount factor of the DQN player. Default: 0.99, dtype: float
+        - buffer_size : buffer size. Default: 10 000, dtype: int
+        - BATCH_SIZE : batch size of the DQN player. Default: 64, dtype: int
+        - TARGET_UPDATE : number of games after the target network of the DQN player is updated. Default: 500, dtype: int
+        """
         super(DQN_Player, self).__init__(player = player)
         self.policy_net = policy_net
         self.target_net = target_net
@@ -801,6 +819,7 @@ class DQN_Player(OptimalPlayer):
         self.optimizer = optim.Adam(policy_net.parameters(), lr = 1e-4)
 
     def copy(self):
+        """Returns a new DQN_player with the same parameters as the DQN player itself."""
         policy_net2 = DQN().to(device)
         target_net2 = DQN().to(device)
         policy_net2.load_state_dict(self.policy_net.state_dict())
@@ -814,10 +833,17 @@ class DQN_Player(OptimalPlayer):
 
         
     def QL_Move(self, heaps):
+        """ Given heaps, implements the DQN player choosing an action with epsilon greedy.
+        input: 
+            - heaps : array of size 3, with the number of sticks in each heap.
+        output: 
+            - result : action that the DQN chooses, with epsilon greedy. 
+                        Array of size 2 : result[0] is the number of the heap, in {1,2,3}, and result[1]
+                        is the number of sticks to take, in {1, 2, ..., 7}."""
         state = to_input(heaps)
-        global steps_done
         random.seed()
         sample = random.random()
+
         #espilon greedy :
         if sample > self.EPS_GREEDY: 
             with torch.no_grad():
@@ -841,10 +867,11 @@ class DQN_Player(OptimalPlayer):
             return result
            
     def act(self, heaps, **kwargs):
+        """ Implements a move, given some heaps. """
         return self.QL_Move(heaps)
     
     def predict(self, heaps):
-        """ predict q values for a given heap
+        """ predict q values for some given heaps
         input : 
             - heaps
         output : 
@@ -864,6 +891,7 @@ class DQN_Player(OptimalPlayer):
         torch.save(self.policy_net.state_dict(), PATH)
 
     def optimize(self):
+        """ Optimization part of the DQN algorithm. """
         if len(self.memory) < self.BATCH_SIZE:
             return
         transitions = self.memory.sample(self.BATCH_SIZE)
@@ -885,8 +913,8 @@ class DQN_Player(OptimalPlayer):
         # Compute Q(s_t, a) - the model computes Q(s_t), then we select the
         # columns of actions taken. These are the actions which would've been taken
         # for each batch state according to policy_net
-        state_action_values = self.policy_net(state_batch) #64 x 21
-        state_action_values = state_action_values.gather(1, ((action_batch[::2]-1)*7+(action_batch[1::2]-1)).view(self.BATCH_SIZE, 1)) #64 x 1
+        state_action_values = self.policy_net(state_batch) # size : BATCH_SIZE x 21
+        state_action_values = state_action_values.gather(1, ((action_batch[::2]-1)*7+(action_batch[1::2]-1)).view(self.BATCH_SIZE, 1)) # size : BATCH_SIZE x 1
 
         # Compute V(s_{t+1}) for all next states.
         # Expected values of actions for non_final_next_states are computed based
@@ -896,10 +924,10 @@ class DQN_Player(OptimalPlayer):
         next_state_values = torch.zeros(self.BATCH_SIZE, device=device)
         if len(non_final_next_states) > 0 :
             next_state_values[non_final_mask] = self.target_net(non_final_next_states).max(1)[0].detach() 
-            # max(1) : take the maximum per batch on the 21 possibilities. [0]: take the max and not the argmax
+            # max(1) : take the maximum per batch on the 21 possibilities. [0]: take the max and not the argmax.
                 
         # Compute the expected Q values
-        expected_state_action_values = (next_state_values * self.GAMMA) + reward_batch  #64
+        expected_state_action_values = (next_state_values * self.GAMMA) + reward_batch  # size : BATCH_SIZE
 
         # Compute Huber loss
         criterion = nn.HuberLoss()
@@ -912,17 +940,27 @@ class DQN_Player(OptimalPlayer):
         return loss.item()
     
     def update_target(self):
-        #count the number of games played by the DQN player and update the target_net after TARGET_UPDATE games.
+        """ Count the number of games played by the DQN player and update the target_net after TARGET_UPDATE games."""
         self.count += 1
         if self.count == self.TARGET_UPDATE:
             self.target_net.load_state_dict(self.policy_net.state_dict())
             self.count = 0
 
     def memory_push(self, state, action, next_state, reward): 
-        #push the transition in the memory buffer
+        """ Push the transition in the memory buffer. """
         self.memory.push(state, action, next_state, reward)
 
-def DQN_one_game(playerDQN, playerOpt, env, update = True): #écrire if update == True ... a la fin de la boucle while, comme est fait dans tous les cas.
+def DQN_one_game(playerDQN : DQN_Player, playerOpt : OptimalPlayer, env : NimEnv, update : bool = True): 
+    """ One game is played in between playerDQN and playerOpt, in the Nim environment env. 
+        input: 
+            - playerDQN : DQN player who plays. dtype: DQN_Player
+            - playerOpt : optimal player who plays against the DQN player. dtype: OptimalPlayer
+            - env : the Nim environment inside which the two players play. dtype: NimEnv
+            - update : if True, the DQN player learns how to play. Otherwise, the DQN player plays without learning. Default: True, dtype: bool.
+        output: 
+            - reward : DQN player's reward at the end of the game
+            - loss : loss of DQN player's optimization at the end of the game
+    """
     heaps, _, _ = env.observe()
     loss = None
     j = 0
@@ -964,9 +1002,32 @@ def DQN_one_game(playerDQN, playerOpt, env, update = True): #écrire if update =
         playerDQN.update_target()
     return reward, loss  
     
-def Q11(policy_net, target_net, memory, nb_games = 20000, eps = 0.1, eps_opt = 0.5, step = 250, GAMMA = 0.99,
-         buffer_size = 10000, BATCH_SIZE = 64, TARGET_UPDATE = 500, seed = None, question = 'q3-11',
-          nb_samples = 5, save = True):
+def Q11(policy_net : DQN, target_net: DQN, memory : ReplayMemory, nb_games : int = 20000, eps : float = 0.1,
+         eps_opt : float = 0.5, step : int = 250, GAMMA : float= 0.99, buffer_size : int = 10000, 
+         BATCH_SIZE : int = 64, TARGET_UPDATE : int = 500, seed = None, question : str = 'q3-11',
+          nb_samples : int = 5, save : bool = True):
+    """
+    Implements the solution to the 11th question
+    - inputs: 
+        - policy_net : the policy network of the DQN player. dtype : DQN
+        - target_net : the target network of the DQN player. dtype : DQN
+        - memory : memory of the DQN player. dtype : ReplayMemory
+        - nb_games: the number of games to play. Default: 20000, dtype: int
+        - eps: espilon associated to the DQN-player (probability of playing at random, i.e. epsilon-greedy) Default: 0.1, dtype: float
+        - eps_opt: epsilon associated to the optimal player. Default: 0.5, dtype: float 
+        - step: number of games to play before calculating the average reward and average loss. Default: 250, dtype: int
+        - GAMMA : discount factor of the DQN player. Default: 0.99, dtype: float
+        - buffer_size : buffer size of the DQN player. Default: 10000, dtype: float
+        - BATCH_SIZE : batch size of the DQN player. Default: 1, dtype: int
+        - TARGET_UPDATE : number of games after the target network of the DQN player is updated. Default: 500, dtype: int
+        - seed: the user can set a given seed for reproducibility. Default: None
+        - question: string used to differentiate between the plots for each question. 
+            Only used if 'save' is True. Default: 'q3-11', dtype: str
+        - nb_samples: if this number is higher than 1, the 'nb_games' are played several times and then averaged in order to take into account the schocasticity of te problem. Default: 5, dtype: int
+        - save: if set to False, the plots are only displayed but not saved. Default: True, dtype: bool
+    - outputs: 
+        - two figures which represent the average reward, respectively loss, every "step" games. 
+    """
     Rewards = np.zeros(int(nb_games / step))
     Steps = np.zeros(int(nb_games / step))
     Losses = np.zeros(int(nb_games / step))
@@ -1024,8 +1085,9 @@ def Q11(policy_net, target_net, memory, nb_games = 20000, eps = 0.1, eps_opt = 0
 
 
 class Memory_Q12(object):
-    # without the replay buffer and with a batch size of 1. Object that can only contain a transition.
-    # At every step,  we will update the network by using only the latest transition.
+    """ Object that can only contain a transition: state, action, next_state and reward.
+    For Q12: without the replay buffer and with a batch size of 1. 
+    At every step, we will update the network by using only the latest transition."""
     def __init__(self):
         self.state = None
         self.action = None
@@ -1070,7 +1132,7 @@ class DQN_Player_no_RB(DQN_Player):
         self.optimizer = optim.Adam(policy_net.parameters(), lr = 1e-4)
 
     def optimize(self):  
-        """Optimization step.""" 
+        """Optimization step. It is different than DQN_player as the memory changed. """ 
         #the batch consist of the memory (of size 1)     
         batch = self.memory 
         # Compute a mask of non-final states and concatenate the batch elements
@@ -1139,7 +1201,7 @@ def Q12(policy_net : DQN(), target_net : DQN(), memory : Memory_Q12(), nb_games 
         - TARGET_UPDATE : number of games after the target network of the DQN player is updated. Default: 500, dtype: int
         - seed: the user can set a given seed for reproducibility. Default: None
         - question: string used to differentiate between the plots for each question. 
-            Only used if 'save' is True. Default: 'q2-4', dtype: str
+            Only used if 'save' is True. Default: 'q3-12', dtype: str
         - nb_samples: if this number is higher than 1, the 'nb_games' are played several times and then averaged in order to take into account the schocasticity of te problem. Default: 5, dtype: int
         - save: if set to False, the plots are only displayed but not saved. Default: True, dtype: bool
     - outputs: 
@@ -1325,19 +1387,21 @@ def Q13(N_star, nb_games : int = 20000, eps_min : float = 0.1, eps_max : float =
             plt.savefig('./Data/' + question + '.png')
     return Final_Mopt, Final_Mrand
 
-def Q14(Eps_opt, n_star = 1000, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, GAMMA = 0.99, buffer_size = 10000, BATCH_SIZE = 64, TARGET_UPDATE = 500,
-        step = 250, seed = None, question = 'q3-14', nb_samples = 5, save = True):
+def Q14(Eps_opt, n_star = 1000, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, GAMMA = 0.99, buffer_size = 10000, 
+        BATCH_SIZE = 64, TARGET_UPDATE = 500, step = 250, seed = None, question = 'q3-14', nb_samples = 5, save = True):
     
     """
-    Implements the solution to the 4th question
+    Implements the solution to the 14th question
     - inputs: 
         - Eps_opt: a list containing the values of different eps_opt for the optimal player. dtype: list of floats
-        - n_star: the value of n* found in the previous questions to be the best for the QL-player. Default: 1000, dtype: int
+        - n_star: the value of n* found in the previous questions to be the best for the DQN-player. Default: 1000, dtype: int
         - nb_games: the number of games to play. Default: 20000, dtype: int
         - eps_min: the minimal value for the exploration level of the QL-player. Default: 0.1, dtype: float
         - eps_max: the maximal value for the exploration level of the QL-player. Default: 0.8, dtype: float
-        - alpha: learning rate of the QL-player. Default: 0.1, dtype: float
-        - gamma: discount factor of the QL-player. Default: 0.99, dtype: float
+        - GAMMA : discount factor of the DQN player. Default: 0.99, dtype: float
+        - buffer_size : buffer size of the DQN player. Default: 10 000. dtype : int.
+        - BATCH_SIZE : batch size of the DQN player. Default: 1, dtype: int
+        - TARGET_UPDATE : number of games after the target network of the DQN player is updated. Default: 500, dtype: int
         - step: number of games to play before calculating the average reward. Default: 250, dtype: int
         - seed: the user can set a given seed for reproducibility. Default: None
         - question: string used to differentiate between the plots for each question. 
@@ -1350,7 +1414,6 @@ def Q14(Eps_opt, n_star = 1000, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, 
         - returns the final Mopt, Mrand for each n* as two dictionnaries
     """
     Eps_opt = list(Eps_opt)
-    #wf.Q4_warning(Eps_opt, n_star, nb_games, eps_min, eps_max, alpha, gamma, step, question, nb_samples, save)
     
     fig, axs = plt.subplots(2,1, figsize = (9,13))
     ax = axs[0]
@@ -1406,7 +1469,7 @@ def Q14(Eps_opt, n_star = 1000, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, 
                             else:
                                 new_playerOpt.player = 1
                                 playerDQN.player = 0
-                            new_reward_mopt, _ = h.DQN_one_game(playerDQN, new_playerOpt, new_env, update = False)
+                            new_reward_mopt, _ = DQN_one_game(playerDQN, new_playerOpt, new_env, update = False)
                             mopt += new_reward_mopt
                             new_env.reset()   
                 
@@ -1448,3 +1511,82 @@ def Q14(Eps_opt, n_star = 1000, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, 
         else:
             plt.savefig('./Data/' + question + '.png')
     return Final_Mopt, Final_Mrand
+
+def Q19(playerDQN : DQN_Player, configs = np.array([[3, 0, 0], [1, 2, 0], [0, 3, 2]]), question = 'q3-19', save = True):
+    """
+    Implements the solution of the 19th question. 
+    inputs: 
+        - playerDQN : the agent who predicts the q-values. dtype : DQN_Player
+        - configs : array of dimension 3 x 3, representing 3 heaps. The q-values will be predicted from these heaps. 
+                    Default: np.array([[3, 0, 0], [1, 2, 0], [0, 3, 2]])
+        - question: string used to differentiate between the plots for each question. 
+            Only used if 'save' is True. Default: 'q3-19', dtype: str
+        - save: if set to False, the plots are only displayed but not saved. Default: True, dtype: bool
+    - output: 
+        - a figure with 3 subplots representing the q-values predicted by the DQN-player, for each heap.
+    """
+    first_heap = configs[0, :]
+    second_heap= configs[1, :]
+    third_heap = configs[2, :]
+    qvals1 = playerDQN.predict(first_heap).detach().numpy()
+    qvals2 = playerDQN.predict(second_heap).detach().numpy()
+    qvals3 = playerDQN.predict(third_heap).detach().numpy()
+
+        
+    fig, axs = plt.subplots(3, 1, figsize = (30, 10))
+    fig.subplots_adjust(hspace=0.5)
+    ax1 = axs[0]
+    ax2 = axs[1]
+    ax3 = axs[2]
+
+    x_label_list = np.arange(1, 8, 1)
+    y_label_list = [1, 2, 3]
+
+    v_min = -8
+    v_max = 2
+
+    ax1.set_yticks(np.arange(0, 3, 1))
+    ax1.set_yticklabels(y_label_list)
+    ax1.set_xticks(np.arange(0, 7, 1))
+    ax1.set_xticklabels(x_label_list)
+    ax1.set_xlabel('Number of sticks')
+    ax1.set_ylabel('Heap')
+    divider1 = make_axes_locatable(ax1)
+    ax1.set_title('Current configuration: ' + str(first_heap[0]) + ' | ' + str(first_heap[1]) + ' | ' + str(first_heap[2]))
+    im1 = ax1.imshow(qvals1)
+    #color bar on the right
+    cax1 = divider1.append_axes("right", size="5%", pad=0.05)
+    im1.set_clim(v_min, v_max)
+    plt.colorbar(im1, cax = cax1, label = 'Q-values')
+    
+    
+    ax2.set_yticks(np.arange(0, 3, 1))
+    ax2.set_yticklabels(y_label_list)
+    ax2.set_xticks(np.arange(0, 7, 1))
+    ax2.set_xticklabels(x_label_list)
+    ax2.set_xlabel('Number of sticks')
+    ax2.set_ylabel('Heap')
+    divider2 = make_axes_locatable(ax2)
+    ax2.set_title('Current configuration: ' + str(second_heap[0]) + ' | ' + str(second_heap[1]) + ' | ' + str(second_heap[2]))
+    im2 = ax2.imshow(qvals2)
+    cax2 = divider2.append_axes("right", size="5%", pad=0.05)
+    im2.set_clim(v_min, v_max)
+    plt.colorbar(im2, cax = cax2, label = 'Q-values')
+
+    ax3.set_yticks(np.arange(0, 3, 1))
+    ax3.set_yticklabels(y_label_list)
+    ax3.set_xticks(np.arange(0, 7, 1))
+    ax3.set_xticklabels(x_label_list)
+    ax3.set_xlabel('Number of sticks')
+    ax3.set_ylabel('Heap')
+    divider3 = make_axes_locatable(ax3)
+    ax3.set_title('Current configuration: ' + str(third_heap[0]) + ' | ' + str(third_heap[1]) + ' | ' + str(third_heap[2]))
+    im3 = ax3.imshow(qvals3)
+    cax3 = divider3.append_axes("right", size="5%", pad=0.05) 
+    im3.set_clim(v_min, v_max)
+    plt.colorbar(im3, cax = cax3, label = 'Q-values')
+
+    if save:
+        fig.savefig('./Data/' + question + '.png')
+
+    
