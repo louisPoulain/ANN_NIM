@@ -16,7 +16,7 @@ from collections import namedtuple, deque
 plt.rc('text', usetex=True)
 plt.rc('font', family='serif')
 plt.rc('font', size=11)
-plt.rc('axes',titlesize=20)
+plt.rc('axes',titlesize=20, labelsize = 15)
 plt.rc('legend',fontsize=11)
 plt.rc('figure',titlesize=20)
 
@@ -986,7 +986,7 @@ def Q11(policy_net, target_net, memory, nb_games = 20000, eps = 0.1, eps_opt = 0
     plt.plot(Steps, Rewards)
     plt.title('Evolution of average reward every 250 games')
     plt.xlabel('Number of games played')
-    plt.ylabel('Average reward for QL-player')
+    plt.ylabel('Average reward for DQN-player')
     if save :
         plt.savefig('./Data/' + question + '_rewards' + str(nb_samples) + 'samples.png')
     plt.show()
@@ -995,7 +995,7 @@ def Q11(policy_net, target_net, memory, nb_games = 20000, eps = 0.1, eps_opt = 0
     plt.plot(Steps, Losses)
     plt.title('Evolution of average loss every 250 games')
     plt.xlabel('Number of games played')
-    plt.ylabel('Average loss for QL-player')
+    plt.ylabel('Average loss for DQN-player')
     if save :
         plt.savefig('./Data/' + question + '_losses' + str(nb_samples) + 'samples.png')
     plt.show()
@@ -1003,7 +1003,8 @@ def Q11(policy_net, target_net, memory, nb_games = 20000, eps = 0.1, eps_opt = 0
 
 
 class Memory_Q12(object):
-    #without the replay buffer and with a batch size of 1. At every step,  we will update the network by using only the latest transition.
+    # without the replay buffer and with a batch size of 1. Object that can only contain a transition.
+    # At every step,  we will update the network by using only the latest transition.
     def __init__(self):
         self.state = None
         self.action = None
@@ -1019,8 +1020,20 @@ class Memory_Q12(object):
 
 
 class DQN_Player_no_RB(DQN_Player):
-    def __init__(self, player: int, policy_net : DQN(), target_net : DQN(), memory : Memory_Q12(), EPS_GREEDY: float = 0.2, GAMMA : float = 0.99, buffer_size: int = 10000, BATCH_SIZE: int = 1, TARGET_UPDATE: int = 500):
-        #here memory is not a replay buffer, but can just contain the latest transition.
+    def __init__(self, player: int, policy_net : DQN(), target_net : DQN(), memory : Memory_Q12(), 
+                EPS_GREEDY: float = 0.2, GAMMA : float = 0.99, BATCH_SIZE: int = 1, TARGET_UPDATE: int = 500):
+        """
+    Implements a DQN player, without replay buffer (Q.12)
+    - inputs: 
+        - policy_net : the policy network of the DQN player. dtype : DQN
+        - target_net : the target network of the DQN player. dtype : DQN
+        - memory : memory of the DQN player. dtype : Memory_Q12
+        - nb_games: the number of games to play. Default: 20000, dtype: int
+        - EPS_GREEDY: espilon associated to the DQN-player (probability of playing at random, i.e. epsilon-greedy) Default: 0.1, dtype: float
+        - GAMMA : discount factor of the DQN player. Default: 0.99, dtype: float
+        - BATCH_SIZE : batch size of the DQN player. Default: 1, dtype: int
+        - TARGET_UPDATE : number of games after the target network of the DQN player is updated. Default: 500, dtype: int
+        """
         super(DQN_Player, self).__init__(player = player)
         self.policy_net = policy_net
         self.target_net = target_net
@@ -1028,14 +1041,15 @@ class DQN_Player_no_RB(DQN_Player):
         self.player = player
         self.EPS_GREEDY = EPS_GREEDY
         self.GAMMA = GAMMA
-        self.buffer_size = buffer_size
         self.BATCH_SIZE = BATCH_SIZE
+        self.buffer_size = BATCH_SIZE
         self.TARGET_UPDATE = TARGET_UPDATE
         self.count = 0 #to count when to update target_net.
 
         self.optimizer = optim.Adam(policy_net.parameters(), lr = 1e-4)
 
-    def optimize(self):   
+    def optimize(self):  
+        """Optimization step.""" 
         #the batch consist of the memory (of size 1)     
         batch = self.memory 
         # Compute a mask of non-final states and concatenate the batch elements
@@ -1071,7 +1085,7 @@ class DQN_Player_no_RB(DQN_Player):
 
         # Compute Huber loss
         criterion = nn.HuberLoss()
-        loss = criterion(state_action_values.squeeze(), expected_state_action_values.detach())
+        loss = criterion(state_action_values.squeeze(), expected_state_action_values.squeeze().detach())
 
         # Optimize the model
         self.optimizer.zero_grad()
@@ -1081,14 +1095,36 @@ class DQN_Player_no_RB(DQN_Player):
 
 
     def memory_push(self, state, action, next_state, reward): 
-        #push the transition in the memory buffer
+        """push the transition in the memory."""
         self.memory.push(state, action, next_state, reward)
 
 
 def Q12(policy_net : DQN(), target_net : DQN(), memory : Memory_Q12(), nb_games : int = 20000, 
         eps : float = 0.1, eps_opt : float = 0.5, step : int = 250, GAMMA : float = 0.99, 
-        buffer_size: int = 10000, BATCH_SIZE: int = 1, TARGET_UPDATE: int = 500, seed = None, 
+        BATCH_SIZE: int = 1, TARGET_UPDATE: int = 500, seed = None, 
         question : str = 'q3-12', nb_samples : int = 5, save = True):
+    """
+    Implements the solution to the 12th question
+    - inputs: 
+        - policy_net : the policy network of the DQN player. dtype : DQN
+        - target_net : the target network of the DQN player. dtype : DQN
+        - memory : memory of the DQN player. dtype : Memory_Q12
+        - nb_games: the number of games to play. Default: 20000, dtype: int
+        - eps: espilon associated to the DQN-player (probability of playing at random, i.e. epsilon-greedy) Default: 0.1, dtype: float
+        - eps_opt: epsilon associated to the optimal player. Default: 0.5, dtype: float 
+        - step: number of games to play before calculating the average reward and average loss. Default: 250, dtype: int
+        - GAMMA : discount factor of the DQN player. Default: 0.99, dtype: float
+        - BATCH_SIZE : batch size of the DQN player. Default: 1, dtype: int
+        - TARGET_UPDATE : number of games after the target network of the DQN player is updated. Default: 500, dtype: int
+        - seed: the user can set a given seed for reproducibility. Default: None
+        - question: string used to differentiate between the plots for each question. 
+            Only used if 'save' is True. Default: 'q2-4', dtype: str
+        - nb_samples: if this number is higher than 1, the 'nb_games' are played several times and then averaged in order to take into account the schocasticity of te problem. Default: 5, dtype: int
+        - save: if set to False, the plots are only displayed but not saved. Default: True, dtype: bool
+    - outputs: 
+        - two figures which represent the average reward, respectively loss, every "step" games. 
+    """
+
     Rewards = np.zeros(int(nb_games / step))
     Steps = np.zeros(int(nb_games / step))
     Losses = np.zeros(int(nb_games / step))
@@ -1097,7 +1133,8 @@ def Q12(policy_net : DQN(), target_net : DQN(), memory : Memory_Q12(), nb_games 
         total_loss = 0.0
         env = NimEnv(seed = seed)
         playerOpt = OptimalPlayer(epsilon = eps_opt, player = 0)
-        playerDQN = DQN_Player_no_RB(player = 1, policy_net = policy_net, target_net= target_net, memory=memory, EPS_GREEDY = eps, GAMMA = GAMMA, buffer_size = buffer_size, BATCH_SIZE = BATCH_SIZE, TARGET_UPDATE = TARGET_UPDATE) 
+        playerDQN = DQN_Player_no_RB(player = 1, policy_net = policy_net, target_net= target_net, memory=memory,
+                                     EPS_GREEDY = eps, GAMMA = GAMMA, BATCH_SIZE = BATCH_SIZE, TARGET_UPDATE = TARGET_UPDATE) 
         for i in range(nb_games):
             if i%step ==0:
                 print('New game : ', i)
@@ -1128,7 +1165,7 @@ def Q12(policy_net : DQN(), target_net : DQN(), memory : Memory_Q12(), nb_games 
     plt.plot(Steps, Rewards)
     plt.title('Evolution of average reward every 250 games')
     plt.xlabel('Number of games played')
-    plt.ylabel('Average reward for QL-player')
+    plt.ylabel('Average reward for DQN-player')
     if save :
         plt.savefig('./Data/' + question + '_rewards' + str(nb_samples) + 'samples.png')
     plt.show()
@@ -1137,24 +1174,26 @@ def Q12(policy_net : DQN(), target_net : DQN(), memory : Memory_Q12(), nb_games 
     plt.plot(Steps, Losses)
     plt.title('Evolution of average loss every 250 games')
     plt.xlabel('Number of games played')
-    plt.ylabel('Average loss for QL-player')
+    plt.ylabel('Average loss for DQN-player')
     if save :
         plt.savefig('./Data/' + question + '_losses' + str(nb_samples) + 'samples.png')
     plt.show()
 
-def Q13(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, GAMMA = 0.99, buffer_size = 10000, BATCH_SIZE = 64, TARGET_UPDATE = 500,
-        step = 250, seed = None, question = 'q3-13', nb_samples = 5, save = True):
+def Q13(N_star, nb_games : int = 20000, eps_min : float = 0.1, eps_max : float = 0.8, GAMMA : float = 0.99, 
+        buffer_size : int = 10000, BATCH_SIZE : int = 64, TARGET_UPDATE : int = 500,
+        step : int = 250, seed = None, question : str = 'q3-13', nb_samples : int = 5, save : bool = True):
     
     """
-    Implements the solution to the 4th question
+    Implements the solution to the 13th question
     - inputs: 
-        - Eps_opt: a list containing the values of different eps_opt for the optimal player. dtype: list of floats
-        - n_star: the value of n* found in the previous questions to be the best for the QL-player. Default: 1000, dtype: int
+        - N_star: a list containing the values of different n*. dtype: list of int
         - nb_games: the number of games to play. Default: 20000, dtype: int
         - eps_min: the minimal value for the exploration level of the QL-player. Default: 0.1, dtype: float
         - eps_max: the maximal value for the exploration level of the QL-player. Default: 0.8, dtype: float
-        - alpha: learning rate of the QL-player. Default: 0.1, dtype: float
-        - gamma: discount factor of the QL-player. Default: 0.99, dtype: float
+        - GAMMA : discount factor of the DQN player. Default: 0.99, dtype: float
+        - buffer_size : buffer size of the DQN player. Default: 10 000. dtype : int.
+        - BATCH_SIZE : batch size of the DQN player. Default: 1, dtype: int
+        - TARGET_UPDATE : number of games after the target network of the DQN player is updated. Default: 500, dtype: int
         - step: number of games to play before calculating the average reward. Default: 250, dtype: int
         - seed: the user can set a given seed for reproducibility. Default: None
         - question: string used to differentiate between the plots for each question. 
@@ -1167,9 +1206,8 @@ def Q13(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, GAMMA = 0.99, bu
         - returns the final Mopt, Mrand for each n* as two dictionnaries
     """
 
-    #wf.Q4_warning(Eps_opt, n_star, nb_games, eps_min, eps_max, alpha, gamma, step, question, nb_samples, save)
     
-    fig, axs = plt.subplots(2, 1, figsize = (9, 13))
+    fig, axs = plt.subplots(2,1, figsize = (9, 13))
     ax = axs[0]
     ax2 = axs[1]
     legend = []
@@ -1255,6 +1293,130 @@ def Q13(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, GAMMA = 0.99, bu
     ax2.legend(legend)
     ax.set_title('Evolution of Mopt for different n*')
     ax2.set_title('Evolution of Mrand for different n*')
+    ax.set_xlabel('Number of games played')
+    ax2.set_xlabel('Number of games played')
+    ax.set_ylabel(r'$M_{opt}$')
+    ax2.set_ylabel(r'$M_{rand}$')
+    if save:
+        if nb_samples > 1:
+            plt.savefig('./Data/' + question + '_' + str(nb_samples) + '_samples.png')
+        else:
+            plt.savefig('./Data/' + question + '.png')
+    return Final_Mopt, Final_Mrand
+
+def Q14(Eps_opt, n_star = 1000, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, GAMMA = 0.99, buffer_size = 10000, BATCH_SIZE = 64, TARGET_UPDATE = 500,
+        step = 250, seed = None, question = 'q3-14', nb_samples = 5, save = True):
+    
+    """
+    Implements the solution to the 4th question
+    - inputs: 
+        - Eps_opt: a list containing the values of different eps_opt for the optimal player. dtype: list of floats
+        - n_star: the value of n* found in the previous questions to be the best for the QL-player. Default: 1000, dtype: int
+        - nb_games: the number of games to play. Default: 20000, dtype: int
+        - eps_min: the minimal value for the exploration level of the QL-player. Default: 0.1, dtype: float
+        - eps_max: the maximal value for the exploration level of the QL-player. Default: 0.8, dtype: float
+        - alpha: learning rate of the QL-player. Default: 0.1, dtype: float
+        - gamma: discount factor of the QL-player. Default: 0.99, dtype: float
+        - step: number of games to play before calculating the average reward. Default: 250, dtype: int
+        - seed: the user can set a given seed for reproducibility. Default: None
+        - question: string used to differentiate between the plots for each question. 
+            Only used if 'save' is True. Default: 'q2-4', dtype: str
+        - nb_samples: if this number is higher than 1, the 'nb_games' are played several times and then averaged in order to take into account the schocasticity of te problem. Default: 5, dtype: int
+        - save: if set to False, the plots are only displayed but not saved. Default: True, dtype: bool
+    - outputs: 
+        - a figure with two subplots representing respectively the performance against the optimal player (Mopt) and against a totally random player (Mrand) with a plot for each n*. The performance is averaged on 500 games played 5 times to take stochasticity into account. 
+        According the the value of the argument 'nb_samples', two different figures can be produced. Figures are saved in a folder Data if the argument 'save' is set to True.
+        - returns the final Mopt, Mrand for each n* as two dictionnaries
+    """
+    Eps_opt = list(Eps_opt)
+    #wf.Q4_warning(Eps_opt, n_star, nb_games, eps_min, eps_max, alpha, gamma, step, question, nb_samples, save)
+    
+    fig, axs = plt.subplots(2,1, figsize = (9,13))
+    ax = axs[0]
+    ax2 = axs[1]
+    legend = []
+    Final_Mopt = {}
+    Final_Mrand = {}
+    for j, eps_opt in enumerate(Eps_opt):
+        Mopt = np.zeros(int(nb_games / step))
+        Mrand = np.zeros(int(nb_games / step))
+        Rewards = []
+        Steps = np.zeros(int(nb_games / step))
+        for l in range(nb_samples):
+            total_reward = 0.0
+            env = NimEnv(seed = seed)
+            eps = max(eps_min, eps_max * (1 - 1 / n_star)) 
+            playerOpt = OptimalPlayer(epsilon = eps_opt, player = 0)
+            policy_net = DQN().to(device)
+            target_net = DQN().to(device)
+            target_net.load_state_dict(policy_net.state_dict())
+            target_net.eval()
+            memory = ReplayMemory(buffer_size)
+            playerDQN = DQN_Player(player = 1, policy_net = policy_net, target_net= target_net, memory=memory,
+                                                EPS_GREEDY = eps, GAMMA = GAMMA, buffer_size = buffer_size, BATCH_SIZE = BATCH_SIZE,
+                                                TARGET_UPDATE = TARGET_UPDATE) 
+            
+            for i in range(nb_games):
+                # switch turns at every game
+                if i % 2 == 0:
+                    playerOpt.player = 0
+                    playerDQN.player = 1
+                else:
+                    playerOpt.player = 1
+                    playerDQN.player = 0
+
+                new_reward, _ = DQN_one_game(playerDQN, playerOpt, env)
+                total_reward += new_reward
+
+                if i % step == step - 1:
+                    Rewards.append(total_reward / step)
+                    Steps[i // step] = i
+                    total_reward = 0.0
+                    mopt = 0
+                    mrand = 0
+                    new_env = NimEnv()
+                    for m in range(5):  # here we run for several different seeds
+                        # compute M_opt
+                        new_playerOpt = OptimalPlayer(epsilon = 0, player = 0)
+                        for k in range(500):
+                            if k % 2 == 0:
+                                new_playerOpt.player = 0
+                                playerDQN.player = 1
+                            else:
+                                new_playerOpt.player = 1
+                                playerDQN.player = 0
+                            new_reward_mopt, _ = h.DQN_one_game(playerDQN, new_playerOpt, new_env, update = False)
+                            mopt += new_reward_mopt
+                            new_env.reset()   
+                
+                        # compute M_rand
+                        playerRand = OptimalPlayer(epsilon = 1, player = 0)
+                        for k in range(500):
+                            if k % 2 == 0:
+                                playerRand.player = 0
+                                playerDQN.player = 1
+                            else:
+                                playerRand.player = 1
+                                playerDQN.player = 0
+                            new_reward_mrand, _ = DQN_one_game(playerDQN, playerRand, new_env, update = False)
+                            mrand += new_reward_mrand
+                            new_env.reset()
+                    Mrand[i // step] += mrand / (500 * 5)
+                    Mopt[i // step] += mopt / (500 * 5)
+                
+                env.reset()
+                playerDQN.EPS_GREEDY = max(eps_min, eps_max * (1 - (i + 2) / n_star)) # change eps for the next game (current game is (i+1))
+        
+        ax.plot(Steps, Mopt / nb_samples)
+        ax2.plot(Steps, Mrand / nb_samples)
+        legend.append(r"$\varepsilon_o = {}$".format(eps_opt))
+        Final_Mopt["{}".format(n_star)] = Mopt[-1] / nb_samples
+        Final_Mrand["{}".format(n_star)] = Mrand[-1] / nb_samples
+    
+    ax.legend(legend)
+    ax2.legend(legend)
+    ax.set_title(r'Evolution of Mopt for different $\epsilon_{opt}$')
+    ax2.set_title(r'Evolution of Mrand for different $\epsilon_{opt}$')
     ax.set_xlabel('Number of games played')
     ax2.set_xlabel('Number of games played')
     ax.set_ylabel(r'$M_{opt}$')
