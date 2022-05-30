@@ -1251,6 +1251,7 @@ def Q12(policy_net : DQN(), target_net : DQN(), memory : Memory_Q12(), nb_games 
     plt.ylabel('Average reward for DQN-player')
     if save :
         plt.savefig('./Data/' + question + '_rewards' + str(nb_samples) + 'samples.png')
+        playerDQN.save_net(question)
     plt.show()
 
     plt.figure(figsize = (9, 8))
@@ -1385,6 +1386,7 @@ def Q13(N_star, nb_games : int = 20000, eps_min : float = 0.1, eps_max : float =
             plt.savefig('./Data/' + question + '_' + str(nb_samples) + '_samples.png')
         else:
             plt.savefig('./Data/' + question + '.png')
+        playerDQN.save_net(question)
     return Final_Mopt, Final_Mrand
 
 def Q14(Eps_opt, n_star = 1000, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, GAMMA = 0.99, buffer_size = 10000, 
@@ -1510,6 +1512,7 @@ def Q14(Eps_opt, n_star = 1000, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, 
             plt.savefig('./Data/' + question + '_' + str(nb_samples) + '_samples.png')
         else:
             plt.savefig('./Data/' + question + '.png')
+        playerDQN.save_net(question)
     return Final_Mopt, Final_Mrand
 
 def Q19(playerDQN : DQN_Player, configs = np.array([[3, 0, 0], [1, 2, 0], [0, 3, 2]]), question = 'q3-19', save = True):
