@@ -1002,6 +1002,107 @@ def DQN_one_game(playerDQN : DQN_Player, playerOpt : OptimalPlayer, env : NimEnv
         playerDQN.update_target()
     return reward, loss  
     
+def DQN_one_game_vs_self(player_DQN, env, update = True):
+    """
+    CHANGER COMMENTAIRE
+    Implementation of one game of NIM of a Q-learning player (after: QL player) against itself.
+    - inputs:
+        - playerQL: an instance of the PlayerQL class. The idea is to then create two copies of this player 
+            that will play against each other. Q-values are updated after each game for every instance 
+            (the copies and the original) if update is set to True (see after).
+        - eps: epsilon associated to QL player (probability of playing at random)
+        - alpha: learning rate of the QL player
+        - gamma: discount factor of the QL player
+        - env: an instance of the class NimEnv. Setting with which the players are going to play
+        - update: if set to false, the Q-values are not updated. Default: True. 
+            The utility of this argument is to be able to play a game without having to update the 
+            Q-values (useful when computing Mopt and Mrand)
+    - output: None
+    
+    The idea of the update is to keep a copy of the environment before the turn of a player and after the turn of the other (heaps before and heaps_after) and also the actions played by each.
+    If the game is over we need to update both the players'q-values as they both get a reward (-1 or +1).
+    """
+
+    heaps, _, _ = env.observe()
+    reward = -1
+    loss = None
+    i = 0
+    while not env.end:
+        if env.current_player == 1:
+            move_DQN1 = player_DQN.act(heaps)
+            state_DQN1 = to_input(heaps)
+            is_available = env.check_valid(move_DQN1)
+            if not is_available :
+                #if the action is not valid, we give the agent a negative reward
+                reward = torch.tensor([-1], device=device)
+                next_state = None
+                if update == True :
+                    #print("non valid action, store ", state_DQN1, move_DQN1, next_state, reward)
+                    player_DQN.memory_push(state_DQN1, move_DQN1, next_state, reward)
+                    loss = player_DQN.optimize()
+
+
+                env.end = True
+            else : #if the action is valid, we make a step
+                heaps, done, _ = env.step(move_DQN1)
+
+                if done : #if the game is finished (done == True), then we give the agent a reward of 1.
+                    reward1 = torch.tensor([1], device=device)
+                    reward2 = torch.tensor([-1], device=device)
+                    next_state = None
+                    if update == True:
+                        if i>0:
+                            player_DQN.memory_push(state_DQN2, move_DQN2, state_DQN1, reward2)
+                        player_DQN.memory_push(state_DQN1, move_DQN1, next_state, reward1)
+                        loss = player_DQN.optimize()
+                else:
+                  reward2 = torch.tensor([env.reward(player = 0)], device=device)
+                  next_state = to_input(heaps)
+                  if i > 0 and update == True:
+                    # Store the transition in memory
+                    player_DQN.memory_push(state_DQN2, move_DQN2, next_state = next_state, reward = reward2)
+                    loss = player_DQN.optimize()
+            
+        else:
+            move_DQN2 = player_DQN.act(heaps)
+            state_DQN2 = to_input(heaps)
+            is_available = env.check_valid(move_DQN2)
+            if not is_available :
+                #if the action is not valid, we give the agent a negative reward
+                reward = torch.tensor([-1], device=device)
+                next_state = None
+                if update == True :
+                    #print("non valid action, store ", state_DQN2, move_DQN2, next_state, reward)
+                    player_DQN.memory_push(state_DQN2, move_DQN2, next_state, reward)
+                    loss = player_DQN.optimize()
+
+                env.end = True
+            else : #if the action is valid, we make a step
+                heaps, done, _ = env.step(move_DQN2)
+                if done : #if the game is finished (done == True), then we give the agent a reward of 1.
+                    reward2 = torch.tensor([1], device=device)
+                    reward1 = torch.tensor([-1], device=device)
+                    next_state = None
+                    if update == True:
+                        if i > 0 :
+                            player_DQN.memory_push(state_DQN1, move_DQN1, state_DQN2, reward1)
+                        player_DQN.memory_push(state_DQN2, move_DQN2, next_state, reward2)
+                        loss = player_DQN.optimize()
+                else:
+                  if i > 0 and update == True:
+                    # Store the transition in memory
+                    reward = torch.tensor([env.reward(player = 1)], device=device)
+                    next_state2 = to_input(heaps)
+                    player_DQN.memory_push(state_DQN1, move_DQN1, next_state = next_state2, reward = reward)
+                    loss = player_DQN.optimize()
+
+        if update == True:
+          player_DQN.update_target()
+
+        i += 1
+
+    return reward, loss
+
 def Q11(policy_net : DQN, target_net: DQN, memory : ReplayMemory, nb_games : int = 20000, eps : float = 0.1,
          eps_opt : float = 0.5, step : int = 250, GAMMA : float= 0.99, buffer_size : int = 10000, 
          BATCH_SIZE : int = 64, TARGET_UPDATE : int = 500, seed = None, question : str = 'q3-11',
@@ -1513,6 +1614,233 @@ def Q14(Eps_opt, n_star = 1000, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, 
         else:
             plt.savefig('./Data/' + question + '.png')
         playerDQN.save_net(question)
+    return Final_Mopt, Final_Mrand
+
+def Q16(Eps, nb_games = 20000, GAMMA = 0.99, buffer_size = 10000, BATCH_SIZE = 64, TARGET_UPDATE = 500, step = 250, seed = None, question = 'q3-16', nb_samples = 5, save = True):
+    """
+    CHANGER COMMENTAIRE
+    Implements the solution to the 7th question. The QL-player is trained by playing against itself.
+    - inputs: 
+        - Eps: a list containing the values of different eps for the QL player. dtype: list of float
+        - nb_games: the number of games to play. Default: 20000, dtype: int
+        - alpha: learning rate of the QL-player. Default: 0.1, dtype: float
+        - gamma: discount factor of the QL-player. Default: 0.99, dtype: float
+        - step: number of games to play before calculating the average reward. Default: 250, dtype: int
+        - seed: the user can set a given seed for reproducibility. Default: None
+        - question: string used to differentiate between the plots for each question. 
+            Only used if 'save' is True. Default: 'q2-7', dtype: str
+        - nb_samples: if this number is higher than 1, the 'nb_games' are played several times and then averaged in order to take into account the schocasticity of te problem. Default: 5, dtype: int
+        - save: if set to False, the plots are only displayed but not saved. Default: True, dtype: bool
+    - outputs: 
+        - a figure with two subplots representing respectively the performance against the optimal player (Mopt) and against a totally random player (Mrand) with a plot for each n*. The performance is averaged on 500 games played 5 times to take stochasticity into account. 
+        According the the value of the argument 'nb_samples', two different figures can be produced. Figures are saved in a folder Data if the argument 'save' is set to True.
+        - returns the final Mopt, Mrand for each n* as two dictionnaries
+    """
+    Eps = list(Eps)
+    #wf.Q7_warning(Eps, nb_games, alpha, gamma, step, question, nb_samples, save)
+    
+    fig, axs = plt.subplots(2, 1, figsize = (9, 13))
+    ax = axs[0]
+    ax2 = axs[1]
+    legend = []
+    Final_Mopt = {}
+    Final_Mrand = {}
+    for j, eps in enumerate(Eps):
+        print("eps : ", eps)
+        Mopt = np.zeros(int(nb_games / step))
+        Mrand = np.zeros(int(nb_games / step))
+        Steps = np.zeros(int(nb_games / step))
+        for l in range(nb_samples):
+            env = NimEnv(seed = seed)
+
+            policy_net = DQN().to(device)
+            target_net = DQN().to(device)
+            target_net.load_state_dict(policy_net.state_dict())
+            target_net.eval()
+            memory = ReplayMemory(buffer_size)
+            playerDQN = DQN_Player(player = 0, policy_net = policy_net, target_net= target_net, memory=memory,
+                                                EPS_GREEDY = eps, GAMMA = GAMMA, buffer_size = buffer_size, BATCH_SIZE = BATCH_SIZE,
+                                                TARGET_UPDATE = TARGET_UPDATE)
+            
+            
+            for i in range(nb_games):
+                DQN_one_game_vs_self(playerDQN, env)
+                
+                if i % step == step - 1:
+                    Steps[i // step] = i
+                    total_reward = 0.0
+                    mopt = 0
+                    mrand = 0
+                    new_env = NimEnv()
+                    for m in range(5):  # here we run for several different seeds
+                        # compute M_opt
+                        playerOpt = OptimalPlayer(epsilon = 0, player = 0)
+                        for k in range(500):
+                            if k % 2 == 0:
+                                playerOpt.player = 0
+                                playerDQN.player = 1
+                            else:
+                                playerOpt.player = 1
+                                playerDQN.player = 0
+                            new_reward, _ = DQN_one_game(playerDQN, playerOpt, env = new_env, update = False)
+                            mopt += new_reward
+                            new_env.reset()   
+                
+                        # compute M_rand
+                        playerRand = OptimalPlayer(epsilon = 1, player = 0)
+                        for k in range(500):
+                            if k % 2 == 0:
+                                playerRand.player = 0
+                                playerDQN.player = 1
+                            else:
+                                playerRand.player = 1
+                                playerDQN.player = 0
+                            new_reward, _ = DQN_one_game(playerDQN, playerRand, env = new_env, update = False)
+                            mrand += new_reward
+                            new_env.reset()
+                    Mrand[i // step] += mrand / (500 * 5)
+                    Mopt[i // step] += mopt / (500 * 5)
+                
+                env.reset(seed = seed)
+        
+        ax.plot(Steps, Mopt / nb_samples)
+        ax2.plot(Steps, Mrand / nb_samples)
+        legend.append(r"$\varepsilon = {}$".format(eps))
+        Final_Mopt["{}".format(eps)] = Mopt[-1] / nb_samples
+        Final_Mrand["{}".format(eps)] = Mrand[-1] / nb_samples
+    
+    ax.legend(legend)
+    ax2.legend(legend)
+    ax.set_title('Evolution of Mopt for different epsilon')
+    ax2.set_title('Evolution of Mrand for different epsilon')
+    ax.set_xlabel('Number of games played against itself')
+    ax2.set_xlabel('Number of games played against itself')
+    ax.set_ylabel(r'$M_{opt}$')
+    ax2.set_ylabel(r'$M_{rand}$')
+    if save:
+        if nb_samples > 1:
+            plt.savefig('./Data/' + question + '_' + str(nb_samples) + '_samples.png')
+            #plt.savefig("/content/drive/MyDrive/ColabNotebooks/ANN/Data/" + question + '_' + str(nb_samples) + "_samples.png")
+        else:
+            plt.savefig('./Data/' + question + '.png')
+            #plt.savefig('/content/drive/MyDrive/ColabNotebooks/ANN/Data/'+ question + '.png')
+        playerDQN.save_net(question)
+    return Final_Mopt, Final_Mrand
+
+def Q17(N_star, nb_games : int = 20000, eps_min : float = 0.1, eps_max : float = 0.8, GAMMA : float = 0.99, 
+        buffer_size : int = 10000, BATCH_SIZE : int = 64, TARGET_UPDATE : int = 500,
+        step : int = 250, seed = None, question : str = 'q3-17', nb_samples : int = 5, save : bool = True):
+    
+    """
+    CHANGER COMMENTAIRE
+    Implements the solution to the 17th question
+    - inputs: 
+        - N_star: a list containing the values of different n*. dtype: list of int
+        - nb_games: the number of games to play. Default: 20000, dtype: int
+        - eps_min: the minimal value for the exploration level of the QL-player. Default: 0.1, dtype: float
+        - eps_max: the maximal value for the exploration level of the QL-player. Default: 0.8, dtype: float
+        - GAMMA : discount factor of the DQN player. Default: 0.99, dtype: float
+        - buffer_size : buffer size of the DQN player. Default: 10 000. dtype : int.
+        - BATCH_SIZE : batch size of the DQN player. Default: 1, dtype: int
+        - TARGET_UPDATE : number of games after the target network of the DQN player is updated. Default: 500, dtype: int
+        - step: number of games to play before calculating the average reward. Default: 250, dtype: int
+        - seed: the user can set a given seed for reproducibility. Default: None
+        - question: string used to differentiate between the plots for each question. 
+            Only used if 'save' is True. Default: 'q2-4', dtype: str
+        - nb_samples: if this number is higher than 1, the 'nb_games' are played several times and then averaged in order to take into account the schocasticity of te problem. Default: 5, dtype: int
+        - save: if set to False, the plots are only displayed but not saved. Default: True, dtype: bool
+    - outputs: 
+        - a figure with two subplots representing respectively the performance against the optimal player (Mopt) and against a totally random player (Mrand) with a plot for each n*. The performance is averaged on 500 games played 5 times to take stochasticity into account. 
+        According the the value of the argument 'nb_samples', two different figures can be produced. Figures are saved in a folder Data if the argument 'save' is set to True.
+        - returns the final Mopt, Mrand for each n* as two dictionnaries
+    """
+    N_star = list(N_star)
+    
+    fig, axs = plt.subplots(1, 2, figsize = (13, 9))
+    ax = axs[0]
+    ax2 = axs[1]
+    legend = []
+    Final_Mopt = {}
+    Final_Mrand = {}
+    for j, n_star in enumerate(N_star):
+        Mopt = np.zeros(int(nb_games / step))
+        Mrand = np.zeros(int(nb_games / step))
+        Steps = np.zeros(int(nb_games / step))
+        for l in range(nb_samples):
+            env = NimEnv(seed = seed)
+            eps = max(eps_min, eps_max * (1 - 1 / n_star)) 
+            policy_net = DQN().to(device)
+            target_net = DQN().to(device)
+            target_net.load_state_dict(policy_net.state_dict())
+            target_net.eval()
+            memory = ReplayMemory(buffer_size)
+            playerDQN = DQN_Player(player = 1, policy_net = policy_net, target_net= target_net, memory=memory,
+                                                EPS_GREEDY = eps, GAMMA = GAMMA, buffer_size = buffer_size, BATCH_SIZE = BATCH_SIZE,
+                                                TARGET_UPDATE = TARGET_UPDATE) 
+            
+            for i in range(nb_games):
+                DQN_one_game_vs_self(playerDQN, env)
+    
+                if i % step == step - 1:
+                    Steps[i // step] = i
+                    mopt = 0
+                    mrand = 0
+                    new_env = NimEnv()
+                    for m in range(5):  # here we run for several different seeds
+                        # compute M_opt
+                        new_playerOpt = OptimalPlayer(epsilon = 0, player = 0)
+                        for k in range(500):
+                            if k % 2 == 0:
+                                new_playerOpt.player = 0
+                                playerDQN.player = 1
+                            else:
+                                new_playerOpt.player = 1
+                                playerDQN.player = 0
+                            new_reward_mopt, _ = DQN_one_game(playerDQN, new_playerOpt, new_env, update = False)
+                            mopt += new_reward_mopt
+                            new_env.reset()   
+                
+                        # compute M_rand
+                        playerRand = OptimalPlayer(epsilon = 1, player = 0)
+                        for k in range(500):
+                            if k % 2 == 0:
+                                playerRand.player = 0
+                                playerDQN.player = 1
+                            else:
+                                playerRand.player = 1
+                                playerDQN.player = 0
+                            new_reward_mrand, _ = DQN_one_game(playerDQN, playerRand, new_env, update = False)
+                            mrand += new_reward_mrand
+                            new_env.reset()
+                    Mrand[i // step] += mrand / (500 * 5)
+                    Mopt[i // step] += mopt / (500 * 5)
+                
+                env.reset()
+                playerDQN.EPS_GREEDY = max(eps_min, eps_max * (1 - (i + 2) / n_star)) # change eps for the next game (current game is (i+1))
+        
+        ax.plot(Steps, Mopt / nb_samples)
+        ax2.plot(Steps, Mrand / nb_samples)
+        legend.append(r"$n^* = {}$".format(n_star))
+        Final_Mopt["{}".format(n_star)] = Mopt[-1] / nb_samples
+        Final_Mrand["{}".format(n_star)] = Mrand[-1] / nb_samples
+    
+    ax.legend(legend)
+    ax2.legend(legend)
+    ax.set_title('Evolution of Mopt for different n*')
+    ax2.set_title('Evolution of Mrand for different n*')
+    ax.set_xlabel('Number of games played')
+    ax2.set_xlabel('Number of games played')
+    ax.set_ylabel(r'$M_{opt}$')
+    ax2.set_ylabel(r'$M_{rand}$')
+    if save:
+        if nb_samples > 1:
+            plt.savefig('./Data/' + question + '_' + str(nb_samples) + '_samples.png')
+            #plt.savefig("/content/drive/MyDrive/ColabNotebooks/ANN/Data/" + question + '_' + str(nb_samples) + "_samples.png")
+        else:
+            plt.savefig('./Data/' + question + '.png')
+            #plt.savefig('/content/drive/MyDrive/ColabNotebooks/ANN/Data/'+ question + '.png')
+        playerDQN.save_net(question)
+
     return Final_Mopt, Final_Mrand
 
 def Q19(playerDQN : DQN_Player, configs = np.array([[3, 0, 0], [1, 2, 0], [0, 3, 2]]), question = 'q3-19', save = True):
