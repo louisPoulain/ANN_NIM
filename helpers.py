@@ -842,6 +842,12 @@ class DQN_Player(OptimalPlayer):
            
     def act(self, heaps, **kwargs):
         return self.QL_Move(heaps)
+    
+    def predict(self, heaps):
+        #q-values for each possible action
+        state = to_input(heaps)
+        q = self.policy_net(state)
+        return q.view(3, -1)
 
     def optimize(self):
         if len(self.memory) < self.BATCH_SIZE:
