@@ -8,9 +8,9 @@ import warnings
 
 plt.rc('text', usetex=True)
 plt.rc('font', family='serif')
-plt.rc('font', size=11)
-plt.rc('axes',titlesize=20)
-plt.rc('legend',fontsize=11)
+plt.rc('font', size=15)
+plt.rc('axes',titlesize=20, labelsize = 15)
+plt.rc('legend',fontsize=15)
 plt.rc('figure',titlesize=20)
 
 def QL_one_game(playerQL, playerOpt, eps, eps_opt, alpha, gamma, env, update = True):
@@ -690,37 +690,39 @@ def Q10(qval, configs = ['300', '120', '032'], question = 'q2-10', save = True):
     tick_positions2 = np.linspace(1. / len2 , 1, len2, endpoint = False)
     tick_positions3 = np.linspace(1. / len3 , 1, len3, endpoint = False)
     
-    tick_labels1 = [t for t in qval[first_config].keys()]
+    keys1 = [t for t in qval[first_config].keys()]
+    tick_labels1 = [str(int(first_config[0]) - int(keys1[i][0])) + str(int(first_config[1]) - int(keys1[i][1])) + str(int(first_config[2]) - int(keys1[i][2])) for i in range(len(keys1))]
     qvals1 = [q for q in qval[first_config].values()]
     ax1.set_xticks(tick_positions1)
     ax1.set_xticklabels(tick_labels1)
-    ax1.set_xlabel('Possible future configurations')
+    ax1.set_xlabel('Possible actions')
     ax1.set_ylabel('Q-values')
     ax1.set_title('Current configuration: ' + str(first_config[0]) + ' | ' + str(first_config[1]) + ' | ' + str(first_config[2]))
     ax1.bar(tick_positions1, qvals1, width = 1. / (2 * len1))
     
-    tick_labels2 = [t for t in qval[second_config].keys()]
+    keys2 = [t for t in qval[second_config].keys()]
+    tick_labels2 = [str(int(second_config[0]) - int(keys2[i][0])) + str(int(second_config[1]) - int(keys2[i][1])) + str(int(second_config[2]) - int(keys2[i][2])) for i in range(len(keys2))]
     qvals2 = [q for q in qval[second_config].values()]
     ax2.set_xticks(tick_positions2)
     ax2.set_xticklabels(tick_labels2)
-    ax2.set_xlabel('Possible future configurations')
+    ax2.set_xlabel('Possible actions')
     ax2.set_ylabel('Q-values')
     ax2.set_title('Current configuration: ' + str(second_config[0]) + ' | ' + str(second_config[1]) + ' | ' + str(second_config[2]))
     ax2.bar(tick_positions2, qvals2, width = 1. / (2 * len2))
     
-    tick_labels3 = [t for t in qval[third_config].keys()]
+    keys3 = [t for t in qval[third_config].keys()]
+    tick_labels3 = [str(int(third_config[0]) - int(keys3[i][0])) + str(int(third_config[1]) - int(keys3[i][1])) + str(int(third_config[2]) - int(keys3[i][2])) for i in range(len(keys3))]
     qvals3 = [q for q in qval[third_config].values()]
     ax3.set_xticks(tick_positions3)
     ax3.set_xticklabels(tick_labels3)
-    ax3.set_xlabel('Possible future configurations')
+    ax3.set_xlabel('Possible actions')
     ax3.set_ylabel('Q-values')
     ax3.set_title('Current configuration: ' + str(third_config[0]) + ' | ' + str(third_config[1]) + ' | ' + str(third_config[2]))
     ax3.bar(tick_positions3, qvals3, width = 1. / (2 * len3))
 
     if save:
         fig.savefig('./Data/' + question + '.png')
-    
-    
+ 
     
     
     
