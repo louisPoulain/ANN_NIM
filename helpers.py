@@ -1,10 +1,12 @@
 # In this file we implement some helpers functions and algorithms dedicated to our tasks
 
+from operator import index
 import numpy as np
 import matplotlib.pyplot as plt
 from nim_env import NimEnv, OptimalPlayer, QL_Player
 import WarningFunctions as wf
 import warnings
+import time
 
 plt.rc('text', usetex=True)
 plt.rc('font', family='serif')
@@ -149,11 +151,13 @@ def Q1(nb_games = 20000, eps = 0.1, eps_opt = 0.5, alpha = 0.1, gamma = 0.99, st
     plt.figure(figsize = (9, 8))
     Rewards = np.zeros(int(nb_games / step))
     Steps = np.zeros(int(nb_games / step))
+    Times = np.zeros(int(nb_games / step))
     for s in range(nb_samples):
         total_reward = 0.0
         env = NimEnv(seed = seed)
         playerOpt = OptimalPlayer(epsilon = eps_opt, player = 0)
         playerQL = QL_Player(epsilon = eps, player = 1)
+        time_start = time.time()
         for i in range(nb_games):
             # switch turns at every game
             if i % 2 == 0:
@@ -166,11 +170,14 @@ def Q1(nb_games = 20000, eps = 0.1, eps_opt = 0.5, alpha = 0.1, gamma = 0.99, st
             total_reward += QL_one_game(playerQL, playerOpt, eps = playerQL.epsilon, eps_opt = playerOpt.epsilon, 
                                         alpha = alpha, gamma = gamma, env = env)
             if i % step == step - 1:
+                Times[i // step] += time.time() - time_start
                 Rewards[i // step] += total_reward / step
                 Steps[i // step] = i
                 total_reward = 0.0
+                time_start = time.time()
             env.reset(seed = seed)
     Rewards = Rewards / nb_samples
+    Times = Times / nb_samples
     plt.plot(Steps, Rewards)
     plt.title('Evolution of average reward every 250 games')
     plt.xlabel('Number of games played')
@@ -180,7 +187,9 @@ def Q1(nb_games = 20000, eps = 0.1, eps_opt = 0.5, alpha = 0.1, gamma = 0.99, st
             plt.savefig('./Data/' + question + '_' + str(nb_samples) + '_samples.png')
         else:
             plt.savefig('./Data/' + question + '.png')
-    return Rewards
+    index_80 = np.argmax(Rewards > 0.8 * Rewards[-1]) + 1
+    training_time = np.sum(Times[:index_80])
+    return Rewards, training_time
     
 
 def Q2(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamma = 0.99, 
@@ -209,7 +218,9 @@ def Q2(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamm
     plt.figure(figsize = (9, 8))
     legend = []
     Final_rewards = {}
+    training_times = {}
     for j, n_star in enumerate(N_star):
+        Times = np.zeros(int(nb_games / step))
         Rewards = np.zeros(int(nb_games / step))
         Steps = np.zeros(int(nb_games / step))
         for s in range(nb_samples):
@@ -218,6 +229,7 @@ def Q2(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamm
             playerOpt = OptimalPlayer(epsilon = 0.5, player = 0)
             playerQL = QL_Player(epsilon = eps, player = 1)
             total_reward = 0.0
+            time_start = time.time()
             for i in range(nb_games):
                 # switch turns at every game
                 if i % 2 == 0:
@@ -230,15 +242,21 @@ def Q2(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamm
                 total_reward += QL_one_game(playerQL, playerOpt, eps = playerQL.epsilon, eps_opt = playerOpt.epsilon, 
                                             alpha = alpha, gamma = gamma, env = env)
                 if i % step == step - 1:
+                    Times[i // step] += time.time() - time_start
                     Rewards[i // step] += total_reward / step
                     total_reward = 0.
                     Steps[i // step] = i
+                    time_start = time.time()
                 env.reset(seed = seed)
                 playerQL.epsilon = max(eps_min, eps_max * (1 - (i + 2) / n_star)) # change eps for the next game (current game is (i+1))
         Rewards = Rewards / nb_samples
+        Times = Times / nb_samples
         plt.plot(Steps, Rewards)
         Final_rewards['{}'.format(n_star)] = Rewards[-1]
         legend.append(r"$n_* = {}$".format(n_star))
+        index_80 = np.argmax(Rewards > 0.8 * Rewards[-1]) + 1
+        training_time = np.sum(Times[:index_80])
+        training_times[f'{n_star}'] = training_time
     plt.legend(legend)
     plt.title('Evolution of average reward with decrease of exploration level')
     plt.xlabel('Number of games played')
@@ -248,7 +266,7 @@ def Q2(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamm
             plt.savefig('./Data/' + question + '_' + str(nb_samples) + '_samples.png')
         else:
             plt.savefig('./Data/' + question + '.png')
-    return Final_rewards
+    return Final_rewards, training_times
     
 def Q3(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamma = 0.99, 
        step = 250, seed = None, question = 'q2-3', nb_samples = 5, save = True):
@@ -280,17 +298,20 @@ def Q3(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamm
     legend = []
     Final_Mopt = {}
     Final_Mrand = {}
+    training_times_opt = {}
+    training_times_rand = {}
     for j, n_star in enumerate(N_star):
         Mopt = np.zeros(int(nb_games / step))
         Mrand = np.zeros(int(nb_games / step))
         Steps = np.zeros(int(nb_games / step))
+        Times = np.zeros(int(nb_games / step))
         for l in range(nb_samples):
             total_reward = 0.0
             env = NimEnv(seed = seed)
             eps = max(eps_min, eps_max * (1 - 1 / n_star)) 
             playerOpt = OptimalPlayer(epsilon = 0.5, player = 0)
             playerQL = QL_Player(epsilon = eps, player = 1)
-            
+            time_start = time.time()
             for i in range(nb_games):
                 # switch turns at every game
                 if i % 2 == 0:
@@ -303,8 +324,8 @@ def Q3(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamm
                 total_reward += QL_one_game(playerQL, playerOpt, eps = playerQL.epsilon, eps_opt = playerOpt.epsilon, 
                                         alpha = alpha, gamma = gamma, env = env)
                 if i % step == step - 1:
+                    Times[i // step] += time.time() - time_start
                     Steps[i // step] = i
-                    total_reward = 0.0
                     mopt = 0
                     mrand = 0
                     new_env = NimEnv(seed = seed)
@@ -336,6 +357,7 @@ def Q3(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamm
                             new_env.reset(seed = seed)
                     Mrand[i // step] += mrand / (500 * 5)
                     Mopt[i // step] += mopt / (500 * 5)
+                    time_start = time.time()
                 
                 env.reset()
                 playerQL.epsilon = max(eps_min, eps_max * (1 - (i + 2) / n_star)) # change eps for the next game (current game is (i+1))
@@ -345,7 +367,13 @@ def Q3(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamm
         legend.append(r"$n_* = {}$".format(n_star))
         Final_Mopt["{}".format(n_star)] = Mopt[-1] / nb_samples
         Final_Mrand["{}".format(n_star)] = Mrand[-1] / nb_samples
-    
+        Times = Times / nb_samples
+        index_80_opt = np.argmax(Mopt > 0.8 * Mopt[-1]) + 1
+        index_80_rand = np.argmax(Mrand > 0.8 * Mrand[-1]) + 1
+        training_time_opt = np.sum(Times[:index_80_opt])
+        training_time_rand = np.sum(Times[:index_80_rand])
+        training_times_opt[f'{n_star}'] = training_time_opt
+        training_times_rand[f'{n_star}'] = training_times_rand
     ax.legend(legend)
     ax2.legend(legend)
     ax.set_title('Evolution of Mopt for different n*')
@@ -359,7 +387,7 @@ def Q3(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamm
             plt.savefig('./Data/' + question + '_' + str(nb_samples) + '_samples.png')
         else:
             plt.savefig('./Data/' + question + '.png')
-    return Final_Mopt, Final_Mrand
+    return Final_Mopt, Final_Mrand, training_times_opt, training_times_rand
         
 def Q4(Eps_opt, n_star = 1000, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamma = 0.99, 
        step = 250, seed = None, question = 'q2-4', nb_samples = 5, save = True):
@@ -394,18 +422,19 @@ def Q4(Eps_opt, n_star = 1000, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, a
     legend = []
     Final_Mopt = {}
     Final_Mrand = {}
+    training_times_opt = {}
+    training_times_rand = {}
     for j, eps_opt in enumerate(Eps_opt):
         Mopt = np.zeros(int(nb_games / step))
         Mrand = np.zeros(int(nb_games / step))
-        Rewards = []
         Steps = np.zeros(int(nb_games / step))
+        Times = np.zeros(int(nb_games / step))
         for l in range(nb_samples):
-            total_reward = 0.0
             env = NimEnv(seed = seed)
             eps = max(eps_min, eps_max * (1 - 1 / n_star)) 
             playerOpt = OptimalPlayer(epsilon = eps_opt, player = 0)
             playerQL = QL_Player(epsilon = eps, player = 1)
-            
+            time_start = time.time()
             for i in range(nb_games):
                 # switch turns at every game
                 if i % 2 == 0:
@@ -415,12 +444,11 @@ def Q4(Eps_opt, n_star = 1000, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, a
                     playerOpt.player = 1
                     playerQL.player = 0
         
-                total_reward += QL_one_game(playerQL, playerOpt, eps = playerQL.epsilon, eps_opt = playerOpt.epsilon, 
+                reward = QL_one_game(playerQL, playerOpt, eps = playerQL.epsilon, eps_opt = playerOpt.epsilon, 
                                         alpha = alpha, gamma = gamma, env = env)
                 if i % step == step - 1:
-                    Rewards.append(total_reward / step)
+                    Times[i // step] += time.time() - time_start
                     Steps[i // step] = i
-                    total_reward = 0.0
                     mopt = 0
                     mrand = 0
                     new_env = NimEnv()
@@ -452,6 +480,7 @@ def Q4(Eps_opt, n_star = 1000, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, a
                             new_env.reset()
                     Mrand[i // step] += mrand / (500 * 5)
                     Mopt[i // step] += mopt / (500 * 5)
+                    time_start = time.time()
                 
                 env.reset()
                 playerQL.epsilon = max(eps_min, eps_max * (1 - (i + 2) / n_star)) # change eps for the next game (current game is (i+1))
@@ -461,11 +490,18 @@ def Q4(Eps_opt, n_star = 1000, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, a
         legend.append(r"$\varepsilon_o = {}$".format(eps_opt))
         Final_Mopt["{}".format(n_star)] = Mopt[-1] / nb_samples
         Final_Mrand["{}".format(n_star)] = Mrand[-1] / nb_samples
+        Times = Times / nb_samples
+        index_80_opt = np.argmax(Mopt > 0.8 * Mopt[-1]) + 1
+        index_80_rand = np.argmax(Mrand > 0.8 * Mrand[-1]) + 1
+        training_time_opt = np.sum(Times[:index_80_opt])
+        training_time_rand = np.sum(Times[:index_80_rand])
+        training_times_opt[f'{n_star}'] = training_time_opt
+        training_times_rand[f'{n_star}'] = training_times_rand
     
     ax.legend(legend)
     ax2.legend(legend)
-    ax.set_title('Evolution of Mopt for different n*')
-    ax2.set_title('Evolution of Mrand for different n*')
+    ax.set_title('Evolution of Mopt for different optimal epsilons')
+    ax2.set_title('Evolution of Mrand for different optimal epsilons')
     ax.set_xlabel('Number of games played')
     ax2.set_xlabel('Number of games played')
     ax.set_ylabel(r'$M_{opt}$')
@@ -475,7 +511,7 @@ def Q4(Eps_opt, n_star = 1000, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, a
             plt.savefig('./Data/' + question + '_' + str(nb_samples) + '_samples.png')
         else:
             plt.savefig('./Data/' + question + '.png')
-    return Final_Mopt, Final_Mrand
+    return Final_Mopt, Final_Mrand, training_times_opt, training_times_rand
         
         
 def Q7(Eps, nb_games = 20000, alpha = 0.1, gamma = 0.99, step = 250, seed = None, question = 'q2-7', nb_samples = 5, save = True):
@@ -506,20 +542,23 @@ def Q7(Eps, nb_games = 20000, alpha = 0.1, gamma = 0.99, step = 250, seed = None
     legend = []
     Final_Mopt = {}
     Final_Mrand = {}
+    training_times_opt = {}
+    training_times_rand = {}
     for j, eps in enumerate(Eps):
         Mopt = np.zeros(int(nb_games / step))
         Mrand = np.zeros(int(nb_games / step))
         Steps = np.zeros(int(nb_games / step))
+        Times = np.zeros(int(nb_games / step))
         for l in range(nb_samples):
             env = NimEnv(seed = seed)
             playerQL = QL_Player(epsilon = eps, player = 0)
-            
+            time_start = time.time()
             for i in range(nb_games):
                 QL_one_game_vs_self(playerQL, eps = playerQL.epsilon, 
                                     alpha = alpha, gamma = gamma, env = env)
                 if i % step == step - 1:
                     Steps[i // step] = i
-                    total_reward = 0.0
+                    Times[i // step] += time.time() - time_start
                     mopt = 0
                     mrand = 0
                     new_env = NimEnv()
@@ -551,6 +590,7 @@ def Q7(Eps, nb_games = 20000, alpha = 0.1, gamma = 0.99, step = 250, seed = None
                             new_env.reset()
                     Mrand[i // step] += mrand / (500 * 5)
                     Mopt[i // step] += mopt / (500 * 5)
+                    time_start = time.time()
                 
                 env.reset(seed = seed)
         
@@ -559,6 +599,13 @@ def Q7(Eps, nb_games = 20000, alpha = 0.1, gamma = 0.99, step = 250, seed = None
         legend.append(r"$\varepsilon = {}$".format(eps))
         Final_Mopt["{}".format(eps)] = Mopt[-1] / nb_samples
         Final_Mrand["{}".format(eps)] = Mrand[-1] / nb_samples
+        Times = Times / nb_samples
+        index_80_opt = np.argmax(Mopt > 0.8 * Mopt[-1]) + 1
+        index_80_rand = np.argmax(Mrand > 0.8 * Mrand[-1]) + 1
+        training_time_opt = np.sum(Times[:index_80_opt])
+        training_time_rand = np.sum(Times[:index_80_rand])
+        training_times_opt[f'{eps}'] = training_time_opt
+        training_times_rand[f'{eps}'] = training_times_rand
     
     ax.legend(legend)
     ax2.legend(legend)
@@ -573,7 +620,7 @@ def Q7(Eps, nb_games = 20000, alpha = 0.1, gamma = 0.99, step = 250, seed = None
             plt.savefig('./Data/' + question + '_' + str(nb_samples) + '_samples.png')
         else:
             plt.savefig('./Data/' + question + '.png')
-    return Final_Mopt, Final_Mrand
+    return Final_Mopt, Final_Mrand, training_times_opt, training_times_rand
         
         
 def Q8(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamma = 0.99, step = 250, 
