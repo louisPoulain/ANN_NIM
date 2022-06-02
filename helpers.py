@@ -759,7 +759,6 @@ class ReplayMemory(object):
         """Returns the numer of transitions inside the memory. """
         return len(self.memory)
 
-
 def to_input(heaps):
     """change the format of the heaps so that it can be used as an input for the neural network, i.e. converts it to a array of size 9 (binary numbers)"""
     init_state = torch.zeros(9, device = device)
@@ -786,7 +785,6 @@ class DQN(nn.Module):
         x = F.relu(self.fc2(x))
         x = self.fc3(x)
         return x
-
 
 class DQN_Player(OptimalPlayer):
     def __init__(self, player, policy_net : DQN, target_net : DQN, memory : ReplayMemory, EPS_GREEDY : float = 0.1,
@@ -1183,8 +1181,6 @@ def Q11(policy_net : DQN, target_net: DQN, memory : ReplayMemory, nb_games : int
         playerDQN.save_net(question)
     plt.show()
 
-
-
 class Memory_Q12(object):
     """ Object that can only contain a transition: state, action, next_state and reward.
     For Q12: without the replay buffer and with a batch size of 1. 
@@ -1201,7 +1197,6 @@ class Memory_Q12(object):
         self.action = action
         self.next_state = next_state
         self.reward = reward
-
 
 class DQN_Player_no_RB(DQN_Player):
     def __init__(self, player: int, policy_net : DQN(), target_net : DQN(), memory : Memory_Q12(), 
@@ -1281,7 +1276,6 @@ class DQN_Player_no_RB(DQN_Player):
     def memory_push(self, state, action, next_state, reward): 
         """push the transition in the memory."""
         self.memory.push(state, action, next_state, reward)
-
 
 def Q12(policy_net : DQN(), target_net : DQN(), memory : Memory_Q12(), nb_games : int = 20000, 
         eps : float = 0.1, eps_opt : float = 0.5, step : int = 250, GAMMA : float = 0.99, 
