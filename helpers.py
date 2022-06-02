@@ -1430,6 +1430,8 @@ def Q13(N_star, nb_games : int = 20000, eps_min : float = 0.1, eps_max : float =
                     mopt = 0
                     mrand = 0
                     new_env = NimEnv()
+                    # set epsilon to 0 for testing :
+                    playerDQN.EPS_GREEDY = 0
                     for m in range(5):  # here we run for several different seeds
                         # compute M_opt
                         new_playerOpt = OptimalPlayer(epsilon = 0, player = 0)
@@ -1460,6 +1462,7 @@ def Q13(N_star, nb_games : int = 20000, eps_min : float = 0.1, eps_max : float =
                     Mopt[i // step] += mopt / (500 * 5)
                 
                 env.reset()
+                # set the new epsilon for the next
                 playerDQN.EPS_GREEDY = max(eps_min, eps_max * (1 - (i + 2) / n_star)) # change eps for the next game (current game is (i+1))
         
         ax.plot(Steps, Mopt / nb_samples)
@@ -1556,6 +1559,8 @@ def Q14(Eps_opt, n_star = 1000, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, 
                     mopt = 0
                     mrand = 0
                     new_env = NimEnv()
+                    # set epsilon to 0 for testing :
+                    playerDQN.EPS_GREEDY = 0
                     for m in range(5):  # here we run for several different seeds
                         # compute M_opt
                         new_playerOpt = OptimalPlayer(epsilon = 0, player = 0)
@@ -1666,6 +1671,8 @@ def Q16(Eps, nb_games = 20000, GAMMA = 0.99, buffer_size = 10000, BATCH_SIZE = 6
                     mopt = 0
                     mrand = 0
                     new_env = NimEnv()
+                    # set epsilon to 0 for testing :
+                    playerDQN.EPS_GREEDY = 0
                     for m in range(5):  # here we run for several different seeds
                         # compute M_opt
                         playerOpt = OptimalPlayer(epsilon = 0, player = 0)
@@ -1694,6 +1701,8 @@ def Q16(Eps, nb_games = 20000, GAMMA = 0.99, buffer_size = 10000, BATCH_SIZE = 6
                             new_env.reset()
                     Mrand[i // step] += mrand / (500 * 5)
                     Mopt[i // step] += mopt / (500 * 5)
+                    # set back espilon (no longer testing)
+                    playerDQN.EPS_GREEDY = eps
                 
                 env.reset(seed = seed)
         
@@ -1750,7 +1759,7 @@ def Q17(N_star, nb_games : int = 20000, eps_min : float = 0.1, eps_max : float =
     """
     N_star = list(N_star)
     
-    fig, axs = plt.subplots(1, 2, figsize = (13, 9))
+    fig, axs = plt.subplots(2, 1, figsize = (9, 13))
     ax = axs[0]
     ax2 = axs[1]
     legend = []
@@ -1780,6 +1789,7 @@ def Q17(N_star, nb_games : int = 20000, eps_min : float = 0.1, eps_max : float =
                     mopt = 0
                     mrand = 0
                     new_env = NimEnv()
+                    playerDQN.EPS_GREEDY = 0
                     for m in range(5):  # here we run for several different seeds
                         # compute M_opt
                         new_playerOpt = OptimalPlayer(epsilon = 0, player = 0)
