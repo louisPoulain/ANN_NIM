@@ -3,6 +3,7 @@
 from operator import index
 import numpy as np
 import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1 import make_axes_locatable 
 from nim_env import NimEnv, OptimalPlayer, QL_Player
 import WarningFunctions as wf
 import warnings
@@ -15,14 +16,12 @@ plt.rc('axes',titlesize=20, labelsize = 15)
 plt.rc('legend',fontsize=15)
 plt.rc('figure',titlesize=20)
 
-def QL_one_game(playerQL, playerOpt, eps, eps_opt, alpha, gamma, env, update = True):
+def QL_one_game(playerQL, playerOpt, alpha, gamma, env, update = True):
     """
     Implementation of one game of NIM between a Q-learning player (after: QL player) and an optimal player.
     Input:
         - playerQL: an instance of the PlayerQL class
         - playerOpt: an instance of the Optimal player class
-        - eps: epsilon associated to QL player (probability of playing at random)
-        - eps_opt: epsilon associated to player Opt
         - alpha: learning rate of the QL player
         - gamma: discount factor of the QL player
         - env: an instance of the class NimEnv. Setting with which the players are going to play
@@ -58,14 +57,13 @@ def QL_one_game(playerQL, playerOpt, eps, eps_opt, alpha, gamma, env, update = T
     
     return env.reward(playerQL.player)
 
-def QL_one_game_vs_self(playerQL, eps, alpha, gamma, env, update = True):
+def QL_one_game_vs_self(playerQL, alpha, gamma, env, update = True):
     """
     Implementation of one game of NIM of a Q-learning player (after: QL player) against itself.
     - inputs:
         - playerQL: an instance of the PlayerQL class. The idea is to then create two copies of this player 
             that will play against each other. Q-values are updated after each game for every instance 
             (the copies and the original) if update is set to True (see after).
-        - eps: epsilon associated to QL player (probability of playing at random)
         - alpha: learning rate of the QL player
         - gamma: discount factor of the QL player
         - env: an instance of the class NimEnv. Setting with which the players are going to play
@@ -167,8 +165,7 @@ def Q1(nb_games = 20000, eps = 0.1, eps_opt = 0.5, alpha = 0.1, gamma = 0.99, st
                 playerOpt.player = 1
                 playerQL.player = 0
         
-            total_reward += QL_one_game(playerQL, playerOpt, eps = playerQL.epsilon, eps_opt = playerOpt.epsilon, 
-                                        alpha = alpha, gamma = gamma, env = env)
+            total_reward += QL_one_game(playerQL, playerOpt, alpha = alpha, gamma = gamma, env = env)
             if i % step == step - 1:
                 Times[i // step] += time.time() - time_start
                 Rewards[i // step] += total_reward / step
@@ -239,8 +236,7 @@ def Q2(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamm
                     playerOpt.player = 1
                     playerQL.player = 0
         
-                total_reward += QL_one_game(playerQL, playerOpt, eps = playerQL.epsilon, eps_opt = playerOpt.epsilon, 
-                                            alpha = alpha, gamma = gamma, env = env)
+                total_reward += QL_one_game(playerQL, playerOpt, alpha = alpha, gamma = gamma, env = env)
                 if i % step == step - 1:
                     Times[i // step] += time.time() - time_start
                     Rewards[i // step] += total_reward / step
@@ -321,16 +317,18 @@ def Q3(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamm
                     playerOpt.player = 1
                     playerQL.player = 0
         
-                total_reward += QL_one_game(playerQL, playerOpt, eps = playerQL.epsilon, eps_opt = playerOpt.epsilon, 
-                                        alpha = alpha, gamma = gamma, env = env)
+                total_reward += QL_one_game(playerQL, playerOpt, alpha = alpha, gamma = gamma, env = env)
                 if i % step == step - 1:
                     Times[i // step] += time.time() - time_start
                     Steps[i // step] = i
                     mopt = 0
                     mrand = 0
                     new_env = NimEnv(seed = seed)
+                    # save eps
+                    eps = playerQL.epsilon
                     for m in range(5):  # here we run for several different seeds
                         # compute M_opt
+                        playerQL.epsilon = 0
                         new_playerOpt = OptimalPlayer(epsilon = 0, player = 0)
                         for k in range(500):
                             if k % 2 == 0:
@@ -339,8 +337,7 @@ def Q3(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamm
                             else:
                                 new_playerOpt.player = 1
                                 playerQL.player = 0
-                            mopt += QL_one_game(playerQL, new_playerOpt, eps = playerQL.epsilon, eps_opt = new_playerOpt.epsilon, 
-                                                alpha = alpha, gamma = gamma, env = new_env, update = False)
+                            mopt += QL_one_game(playerQL, new_playerOpt, alpha = alpha, gamma = gamma, env = new_env, update = False)
                             new_env.reset(seed = seed)   
                 
                         # compute M_rand
@@ -352,13 +349,12 @@ def Q3(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamm
                             else:
                                 playerRand.player = 1
                                 playerQL.player = 0
-                            mrand += QL_one_game(playerQL, playerRand, eps = playerQL.epsilon, eps_opt = playerRand.epsilon, 
-                                                 alpha = alpha, gamma = gamma, env = new_env, update = False)
+                            mrand += QL_one_game(playerQL, playerRand, alpha = alpha, gamma = gamma, env = new_env, update = False)
                             new_env.reset(seed = seed)
                     Mrand[i // step] += mrand / (500 * 5)
                     Mopt[i // step] += mopt / (500 * 5)
                     time_start = time.time()
-                
+                    playerQL.epsilon = eps
                 env.reset()
                 playerQL.epsilon = max(eps_min, eps_max * (1 - (i + 2) / n_star)) # change eps for the next game (current game is (i+1))
         
@@ -444,16 +440,18 @@ def Q4(Eps_opt, n_star = 1000, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, a
                     playerOpt.player = 1
                     playerQL.player = 0
         
-                reward = QL_one_game(playerQL, playerOpt, eps = playerQL.epsilon, eps_opt = playerOpt.epsilon, 
-                                        alpha = alpha, gamma = gamma, env = env)
+                reward = QL_one_game(playerQL, playerOpt, alpha = alpha, gamma = gamma, env = env)
                 if i % step == step - 1:
                     Times[i // step] += time.time() - time_start
                     Steps[i // step] = i
                     mopt = 0
                     mrand = 0
                     new_env = NimEnv()
+                    # save eps
+                    eps = playerQL.epsilon
                     for m in range(5):  # here we run for several different seeds
                         # compute M_opt
+                        playerQL.epsilon = 0
                         new_playerOpt = OptimalPlayer(epsilon = 0, player = 0)
                         for k in range(500):
                             if k % 2 == 0:
@@ -462,8 +460,7 @@ def Q4(Eps_opt, n_star = 1000, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, a
                             else:
                                 new_playerOpt.player = 1
                                 playerQL.player = 0
-                            mopt += QL_one_game(playerQL, new_playerOpt, eps = playerQL.epsilon, eps_opt = new_playerOpt.epsilon, 
-                                                alpha = alpha, gamma = gamma, env = new_env, update = False)
+                            mopt += QL_one_game(playerQL, new_playerOpt, alpha = alpha, gamma = gamma, env = new_env, update = False)
                             new_env.reset()   
                 
                         # compute M_rand
@@ -475,13 +472,12 @@ def Q4(Eps_opt, n_star = 1000, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, a
                             else:
                                 playerRand.player = 1
                                 playerQL.player = 0
-                            mrand += QL_one_game(playerQL, playerRand, eps = playerQL.epsilon, eps_opt = playerRand.epsilon, 
-                                                 alpha = alpha, gamma = gamma, env = new_env, update = False)
+                            mrand += QL_one_game(playerQL, playerRand, alpha = alpha, gamma = gamma, env = new_env, update = False)
                             new_env.reset()
                     Mrand[i // step] += mrand / (500 * 5)
                     Mopt[i // step] += mopt / (500 * 5)
                     time_start = time.time()
-                
+                    playerQL.epsilon = eps
                 env.reset()
                 playerQL.epsilon = max(eps_min, eps_max * (1 - (i + 2) / n_star)) # change eps for the next game (current game is (i+1))
         
@@ -554,16 +550,18 @@ def Q7(Eps, nb_games = 20000, alpha = 0.1, gamma = 0.99, step = 250, seed = None
             playerQL = QL_Player(epsilon = eps, player = 0)
             time_start = time.time()
             for i in range(nb_games):
-                QL_one_game_vs_self(playerQL, eps = playerQL.epsilon, 
-                                    alpha = alpha, gamma = gamma, env = env)
+                QL_one_game_vs_self(playerQL, alpha = alpha, gamma = gamma, env = env)
                 if i % step == step - 1:
                     Steps[i // step] = i
                     Times[i // step] += time.time() - time_start
                     mopt = 0
                     mrand = 0
                     new_env = NimEnv()
+                    # save eps
+                    eps = playerQL.epsilon
                     for m in range(5):  # here we run for several different seeds
                         # compute M_opt
+                        playerQL.epsilon = 0
                         playerOpt = OptimalPlayer(epsilon = 0, player = 0)
                         for k in range(500):
                             if k % 2 == 0:
@@ -572,8 +570,7 @@ def Q7(Eps, nb_games = 20000, alpha = 0.1, gamma = 0.99, step = 250, seed = None
                             else:
                                 playerOpt.player = 1
                                 playerQL.player = 0
-                            mopt += QL_one_game(playerQL, playerOpt, eps = playerQL.epsilon, eps_opt = playerOpt.epsilon, 
-                                                alpha = alpha, gamma = gamma, env = new_env, update = False)
+                            mopt += QL_one_game(playerQL, playerOpt, alpha = alpha, gamma = gamma, env = new_env, update = False)
                             new_env.reset()   
                 
                         # compute M_rand
@@ -585,12 +582,12 @@ def Q7(Eps, nb_games = 20000, alpha = 0.1, gamma = 0.99, step = 250, seed = None
                             else:
                                 playerRand.player = 1
                                 playerQL.player = 0
-                            mrand += QL_one_game(playerQL, playerRand, eps = playerQL.epsilon, eps_opt = playerRand.epsilon, 
-                                                 alpha = alpha, gamma = gamma, env = new_env, update = False)
+                            mrand += QL_one_game(playerQL, playerRand, alpha = alpha, gamma = gamma, env = new_env, update = False)
                             new_env.reset()
                     Mrand[i // step] += mrand / (500 * 5)
                     Mopt[i // step] += mopt / (500 * 5)
                     time_start = time.time()
+                    playerQL.epsilon = eps
                 
                 env.reset(seed = seed)
         
@@ -661,16 +658,18 @@ def Q8(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamm
             playerQL = QL_Player(epsilon = eps, player = 0)
             
             for i in range(nb_games):
-                QL_one_game_vs_self(playerQL, eps = playerQL.epsilon, 
-                                    alpha = alpha, gamma = gamma, env = env)
+                QL_one_game_vs_self(playerQL, alpha = alpha, gamma = gamma, env = env)
                 if i % step == step - 1:
                     Steps[i // step] = i
                     total_reward = 0.0
                     mopt = 0
                     mrand = 0
                     new_env = NimEnv()
+                    # save eps
+                    eps = playerQL.epsilon
                     for m in range(5):  # here we run for several different seeds
                         # compute M_opt
+                        playerQL.epsilon = 0
                         playerOpt = OptimalPlayer(epsilon = 0, player = 0)
                         for k in range(500):
                             if k % 2 == 0:
@@ -679,8 +678,7 @@ def Q8(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamm
                             else:
                                 playerOpt.player = 1
                                 playerQL.player = 0
-                            mopt += QL_one_game(playerQL, playerOpt, eps = playerQL.epsilon, eps_opt = playerOpt.epsilon, 
-                                                alpha = alpha, gamma = gamma, env = new_env, update = False)
+                            mopt += QL_one_game(playerQL, playerOpt, alpha = alpha, gamma = gamma, env = new_env, update = False)
                             new_env.reset()   
                 
                         # compute M_rand
@@ -692,12 +690,11 @@ def Q8(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamm
                             else:
                                 playerRand.player = 1
                                 playerQL.player = 0
-                            mrand += QL_one_game(playerQL, playerRand, eps = playerQL.epsilon, eps_opt = playerRand.epsilon, 
-                                                 alpha = alpha, gamma = gamma, env = new_env, update = False)
+                            mrand += QL_one_game(playerQL, playerRand, alpha = alpha, gamma = gamma, env = new_env, update = False)
                             new_env.reset()
                     Mrand[i // step] += mrand / (500 * 5)
                     Mopt[i // step] += mopt / (500 * 5)
-                
+                    playerQL.epsilon = eps
                 env.reset()
                 playerQL.epsilon = max(eps_min, eps_max * (1 - (i + 2) / n_star)) # change eps for the next game (current game is (i+1))
         
@@ -723,6 +720,106 @@ def Q8(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamm
     return Final_Mopt, Final_Mrand, Final_qvals
             
 def Q10(qval, configs = ['300', '120', '032'], question = 'q2-10', save = True):
+
+    """
+    Implements the solution of the 19th question. 
+    inputs: 
+        - playerDQN : the agent who predicts the q-values. dtype : DQN_Player
+        - configs : array of dimension 3 x 3, representing 3 heaps. The q-values will be predicted from these heaps. 
+                    Default: np.array([[3, 0, 0], [1, 2, 0], [0, 3, 2]])
+        - question: string used to differentiate between the plots for each question. 
+            Only used if 'save' is True. Default: 'q3-19', dtype: str
+        - save: if set to False, the plots are only displayed but not saved. Default: True, dtype: bool
+    - output: 
+        - a figure with 3 subplots representing the q-values predicted by the DQN-player, for each heap.
+    """
+    first_config = configs[0]
+    second_config = configs[1]
+    third_config = configs[2]
+    qvals1, qvals2, qvals3 = np.zeros((3, 7)) + float('-inf'), np.zeros((3, 7)) + float('-inf'), np.zeros((3, 7)) + float('-inf')
+    for i, future_config in enumerate(qval[first_config]):
+        action1, action2, action3 = str(int(first_config[0]) - int(future_config[0])) + str(int(first_config[1]) - int(future_config[1])) + str(int(first_config[2]) - int(future_config[2]))
+        action = np.array([int(action1), int(action2), int(action3)])
+        non_zero_index = np.argmax(action)
+        number_to_take = int(action[non_zero_index])
+        qvals1[non_zero_index, number_to_take - 1] = qval[first_config][future_config]
+
+    for i, future_config in enumerate(qval[second_config]):
+        action1, action2, action3 = str(int(second_config[0]) - int(future_config[0])) + str(int(second_config[1]) - int(future_config[1])) + str(int(second_config[2]) - int(future_config[2]))
+        action = np.array([int(action1), int(action2), int(action3)])
+        non_zero_index = np.argmax(action)
+        number_to_take = int(action[non_zero_index])
+        qvals2[non_zero_index, number_to_take - 1] = qval[second_config][future_config]
+
+    for i, future_config in enumerate(qval[third_config]):
+        action1, action2, action3 = str(int(third_config[0]) - int(future_config[0])) + str(int(third_config[1]) - int(future_config[1])) + str(int(third_config[2]) - int(future_config[2]))
+        action = np.array([int(action1), int(action2), int(action3)])
+        non_zero_index = np.argmax(action)
+        number_to_take = int(action[non_zero_index])
+        qvals3[non_zero_index, number_to_take - 1] = qval[third_config][future_config]
+
+        
+    fig, axs = plt.subplots(3, 1, figsize = (30, 10))
+    fig.subplots_adjust(hspace=0.5)
+    ax1 = axs[0]
+    ax2 = axs[1]
+    ax3 = axs[2]
+
+    x_label_list = np.arange(1, 8, 1)
+    y_label_list = [1, 2, 3]
+
+    #v_min = -8
+    #v_max = 60
+
+    ax1.set_xticks(np.arange(0, 7, 1))
+    ax1.set_xticklabels(x_label_list)
+    ax1.set_yticks(np.arange(0, 3, 1))
+    ax1.set_yticklabels(y_label_list)
+    
+    ax1.set_xlabel('Number of sticks')
+    ax1.set_ylabel('Heap')
+    divider1 = make_axes_locatable(ax1)
+    ax1.set_title('Current configuration: ' + str(first_config[0]) + ' | ' + str(first_config[1]) + ' | ' + str(first_config[2]))
+    im1 = ax1.imshow(qvals1, cmap = 'plasma_r')
+    #color bar on the right
+    cax1 = divider1.append_axes("right", size="5%", pad=0.05)
+    #im1.set_clim(v_min, v_max)
+    plt.colorbar(im1, cax = cax1, label = 'Q-values')
+    
+    
+    ax2.set_yticks(np.arange(0, 3, 1))
+    ax2.set_yticklabels(y_label_list)
+    ax2.set_xticks(np.arange(0, 7, 1))
+    ax2.set_xticklabels(x_label_list)
+    ax2.set_xlabel('Number of sticks')
+    ax2.set_ylabel('Heap')
+    divider2 = make_axes_locatable(ax2)
+    ax2.set_title('Current configuration: ' + str(second_config[0]) + ' | ' + str(second_config[1]) + ' | ' + str(second_config[2]))
+    im2 = ax2.imshow(qvals2, cmap = 'plasma_r')
+    cax2 = divider2.append_axes("right", size="5%", pad=0.05)
+    #im2.set_clim(v_min, v_max)
+    plt.colorbar(im2, cax = cax2, label = 'Q-values')
+
+    ax3.set_yticks(np.arange(0, 3, 1))
+    ax3.set_yticklabels(y_label_list)
+    ax3.set_xticks(np.arange(0, 7, 1))
+    ax3.set_xticklabels(x_label_list)
+    ax3.set_xlabel('Number of sticks')
+    ax3.set_ylabel('Heap')
+    divider3 = make_axes_locatable(ax3)
+    ax3.set_title('Current configuration: ' + str(third_config[0]) + ' | ' + str(third_config[1]) + ' | ' + str(third_config[2]))
+    im3 = ax3.imshow(qvals3, cmap = 'plasma_r')
+    cax3 = divider3.append_axes("right", size="5%", pad=0.05) 
+    #im3.set_clim(v_min, v_max)
+    plt.colorbar(im3, cax = cax3, label = 'Q-values')
+
+    if save:
+        fig.savefig('./Data/' + question + '.png')
+
+
+
+
+    '''
     first_config = configs[0]
     second_config = configs[1]
     third_config = configs[2]
@@ -769,7 +866,7 @@ def Q10(qval, configs = ['300', '120', '032'], question = 'q2-10', save = True):
 
     if save:
         fig.savefig('./Data/' + question + '.png')
- 
+    '''
     
     
     
