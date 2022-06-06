@@ -1,12 +1,10 @@
 # In this file we implement some helpers functions and algorithms dedicated to our tasks
 
-from operator import index
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable 
 from nim_env import NimEnv, OptimalPlayer, QL_Player
 import WarningFunctions as wf
-import warnings
 import time
 
 plt.rc('text', usetex=True)
@@ -140,7 +138,7 @@ def Q1(nb_games = 20000, eps = 0.1, eps_opt = 0.5, alpha = 0.1, gamma = 0.99, st
         - save: if set to False, the plots are only displayed but not saved. Default: True, dtype: bool
     - outputs: 
         - a plot representing the average reward every 'step' games for the QL-player. According to the value of the argument 'nb_samples', two different plots can be produced. Figures are saved in a folder Data if the argument 'save' is set to True.
-        - returns the list of rewards
+        - returns the list of rewards and the time to achieve 80% of final performance (in s)
     """
     
     # Call the warning function to prevent wrong usage
@@ -209,6 +207,7 @@ def Q2(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamm
     - outputs: 
         - a figure with a plot for each n* representing the average reward every 'step' games for the QL-player. According to the value of the argument 'nb_samples', two different figures can be produced. Figures are saved in a folder Data if the argument 'save' is set to True.
         - returns the final rewards for each n* as a dictionnary
+        - returns the time to achieve 80% of final performance (in s) for each n* as a dictionnary
     """
     wf.Q2_warning(N_star, nb_games, eps_min, eps_max, alpha, gamma, step, question, nb_samples, save)
     
@@ -284,6 +283,8 @@ def Q3(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamm
     - outputs: 
         - a figure with two subplots representing respectively the performance against the optimal player (Mopt) and against a totally random player (Mrand) with a plot for each n*. The performance is averaged on 500 games played 5 times to take stochasticity into account. According to the value of the argument 'nb_samples', two figures can be produced. Figures are saved in a folder Data if the argument 'save' is set to True.
         - returns the final Mopt, Mrand for each n* as two dictionnaries
+        - returns the time to achieve 80% of final performance of Mopt and Mrand (in s) as two dictionnaries 
+            with the values n* as entries
     """
     N_star = list(N_star)
     wf.Q3_warning(N_star, nb_games, eps_min, eps_max, alpha, gamma, step, question, nb_samples, save)
@@ -407,7 +408,9 @@ def Q4(Eps_opt, n_star = 1000, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, a
     - outputs: 
         - a figure with two subplots representing respectively the performance against the optimal player (Mopt) and against a totally random player (Mrand) with a plot for each n*. The performance is averaged on 500 games played 5 times to take stochasticity into account. 
         According the the value of the argument 'nb_samples', two different figures can be produced. Figures are saved in a folder Data if the argument 'save' is set to True.
-        - returns the final Mopt, Mrand for each n* as two dictionnaries
+        - returns the final Mopt, Mrand for each eps_opt as two dictionnaries
+        - returns the time to achieve 80% of final performance of Mopt and Mrand (in s) as two dictionnaries 
+            with the values eps_opt as entries
     """
     Eps_opt = list(Eps_opt)
     wf.Q4_warning(Eps_opt, n_star, nb_games, eps_min, eps_max, alpha, gamma, step, question, nb_samples, save)
@@ -461,7 +464,7 @@ def Q4(Eps_opt, n_star = 1000, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, a
                                 new_playerOpt.player = 1
                                 playerQL.player = 0
                             mopt += QL_one_game(playerQL, new_playerOpt, alpha = alpha, gamma = gamma, env = new_env, update = False)
-                            new_env.reset()   
+                            new_env.reset() 
                 
                         # compute M_rand
                         playerRand = OptimalPlayer(epsilon = 1, player = 0)
@@ -484,15 +487,15 @@ def Q4(Eps_opt, n_star = 1000, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, a
         ax.plot(Steps, Mopt / nb_samples)
         ax2.plot(Steps, Mrand / nb_samples)
         legend.append(r"$\varepsilon_o = {}$".format(eps_opt))
-        Final_Mopt["{}".format(n_star)] = Mopt[-1] / nb_samples
-        Final_Mrand["{}".format(n_star)] = Mrand[-1] / nb_samples
+        Final_Mopt["{}".format(eps_opt)] = Mopt[-1] / nb_samples
+        Final_Mrand["{}".format(eps_opt)] = Mrand[-1] / nb_samples
         Times = Times / nb_samples
         index_80_opt = np.argmax(Mopt > 0.8 * Mopt[-1]) + 1
         index_80_rand = np.argmax(Mrand > 0.8 * Mrand[-1]) + 1
         training_time_opt = np.sum(Times[:index_80_opt])
         training_time_rand = np.sum(Times[:index_80_rand])
-        training_times_opt[f'{n_star}'] = training_time_opt
-        training_times_rand[f'{n_star}'] = training_times_rand
+        training_times_opt[f'{eps_opt}'] = training_time_opt
+        training_times_rand[f'{eps_opt}'] = training_times_rand
     
     ax.legend(legend)
     ax2.legend(legend)
@@ -527,7 +530,9 @@ def Q7(Eps, nb_games = 20000, alpha = 0.1, gamma = 0.99, step = 250, seed = None
     - outputs: 
         - a figure with two subplots representing respectively the performance against the optimal player (Mopt) and against a totally random player (Mrand) with a plot for each n*. The performance is averaged on 500 games played 5 times to take stochasticity into account. 
         According the the value of the argument 'nb_samples', two different figures can be produced. Figures are saved in a folder Data if the argument 'save' is set to True.
-        - returns the final Mopt, Mrand for each n* as two dictionnaries
+        - returns the final Mopt, Mrand for each eps as two dictionnaries
+        - - returns the time to achieve 80% of final performance of Mopt and Mrand (in s) as two dictionnaries 
+            with the values eps as entries
     """
     Eps = list(Eps)
     wf.Q7_warning(Eps, nb_games, alpha, gamma, step, question, nb_samples, save)
@@ -638,7 +643,8 @@ def Q8(N_star, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, alpha = 0.1, gamm
     - outputs: 
         - a figure with two subplots representing respectively the performance against the optimal player (Mopt) and against a totally random player (Mrand) with a plot for each n*. The performance is averaged on 500 games played 5 times to take stochasticity into account. 
         According the the value of the argument 'nb_samples', two different figures can be produced. Figures are saved in a folder Data if the argument 'save' is set to True.
-        - returns the final Mopt, Mrand for each n* as two dictionnaries and the set of Q-values of the QL-player after all games are played
+        - returns the final Mopt, Mrand for each n* as two dictionnaries 
+        - returns the set of Q-values of the QL-player after all games are played for each n* as a dictionnary
     """
     N_star = list(N_star)
     wf.Q8_warning(N_star, nb_games, eps_min, eps_max, alpha, gamma, step, question, nb_samples, save)
@@ -768,9 +774,6 @@ def Q10(qval, configs = ['300', '120', '032'], question = 'q2-10', save = True):
     x_label_list = np.arange(1, 8, 1)
     y_label_list = [1, 2, 3]
 
-    #v_min = -8
-    #v_max = 60
-
     ax1.set_xticks(np.arange(0, 7, 1))
     ax1.set_xticklabels(x_label_list)
     ax1.set_yticks(np.arange(0, 3, 1))
@@ -783,7 +786,6 @@ def Q10(qval, configs = ['300', '120', '032'], question = 'q2-10', save = True):
     im1 = ax1.imshow(qvals1, cmap = 'plasma_r')
     #color bar on the right
     cax1 = divider1.append_axes("right", size="5%", pad=0.05)
-    #im1.set_clim(v_min, v_max)
     plt.colorbar(im1, cax = cax1, label = 'Q-values')
     
     
@@ -797,7 +799,6 @@ def Q10(qval, configs = ['300', '120', '032'], question = 'q2-10', save = True):
     ax2.set_title('Current configuration: ' + str(second_config[0]) + ' | ' + str(second_config[1]) + ' | ' + str(second_config[2]))
     im2 = ax2.imshow(qvals2, cmap = 'plasma_r')
     cax2 = divider2.append_axes("right", size="5%", pad=0.05)
-    #im2.set_clim(v_min, v_max)
     plt.colorbar(im2, cax = cax2, label = 'Q-values')
 
     ax3.set_yticks(np.arange(0, 3, 1))
@@ -810,63 +811,10 @@ def Q10(qval, configs = ['300', '120', '032'], question = 'q2-10', save = True):
     ax3.set_title('Current configuration: ' + str(third_config[0]) + ' | ' + str(third_config[1]) + ' | ' + str(third_config[2]))
     im3 = ax3.imshow(qvals3, cmap = 'plasma_r')
     cax3 = divider3.append_axes("right", size="5%", pad=0.05) 
-    #im3.set_clim(v_min, v_max)
     plt.colorbar(im3, cax = cax3, label = 'Q-values')
 
     if save:
         fig.savefig('./Data/' + question + '.png')
-
-
-
-
-    '''
-    first_config = configs[0]
-    second_config = configs[1]
-    third_config = configs[2]
-    fig, axs = plt.subplots(1, 3, figsize = (18, 6))
-    ax1 = axs[0]
-    ax2 = axs[1]
-    ax3 = axs[2]
-    len1 = len(qval[first_config])
-    len2 = len(qval[second_config])
-    len3 = len(qval[third_config])
-    tick_positions1 = np.linspace(1. / len1 , 1, len1, endpoint = False)
-    tick_positions2 = np.linspace(1. / len2 , 1, len2, endpoint = False)
-    tick_positions3 = np.linspace(1. / len3 , 1, len3, endpoint = False)
-    
-    keys1 = [t for t in qval[first_config].keys()]
-    tick_labels1 = [str(int(first_config[0]) - int(keys1[i][0])) + str(int(first_config[1]) - int(keys1[i][1])) + str(int(first_config[2]) - int(keys1[i][2])) for i in range(len(keys1))]
-    qvals1 = [q for q in qval[first_config].values()]
-    ax1.set_xticks(tick_positions1)
-    ax1.set_xticklabels(tick_labels1)
-    ax1.set_xlabel('Possible actions')
-    ax1.set_ylabel('Q-values')
-    ax1.set_title('Current configuration: ' + str(first_config[0]) + ' | ' + str(first_config[1]) + ' | ' + str(first_config[2]))
-    ax1.bar(tick_positions1, qvals1, width = 1. / (2 * len1))
-    
-    keys2 = [t for t in qval[second_config].keys()]
-    tick_labels2 = [str(int(second_config[0]) - int(keys2[i][0])) + str(int(second_config[1]) - int(keys2[i][1])) + str(int(second_config[2]) - int(keys2[i][2])) for i in range(len(keys2))]
-    qvals2 = [q for q in qval[second_config].values()]
-    ax2.set_xticks(tick_positions2)
-    ax2.set_xticklabels(tick_labels2)
-    ax2.set_xlabel('Possible actions')
-    ax2.set_ylabel('Q-values')
-    ax2.set_title('Current configuration: ' + str(second_config[0]) + ' | ' + str(second_config[1]) + ' | ' + str(second_config[2]))
-    ax2.bar(tick_positions2, qvals2, width = 1. / (2 * len2))
-    
-    keys3 = [t for t in qval[third_config].keys()]
-    tick_labels3 = [str(int(third_config[0]) - int(keys3[i][0])) + str(int(third_config[1]) - int(keys3[i][1])) + str(int(third_config[2]) - int(keys3[i][2])) for i in range(len(keys3))]
-    qvals3 = [q for q in qval[third_config].values()]
-    ax3.set_xticks(tick_positions3)
-    ax3.set_xticklabels(tick_labels3)
-    ax3.set_xlabel('Possible actions')
-    ax3.set_ylabel('Q-values')
-    ax3.set_title('Current configuration: ' + str(third_config[0]) + ' | ' + str(third_config[1]) + ' | ' + str(third_config[2]))
-    ax3.bar(tick_positions3, qvals3, width = 1. / (2 * len3))
-
-    if save:
-        fig.savefig('./Data/' + question + '.png')
-    '''
     
     
     
