@@ -1615,25 +1615,27 @@ def Q14(Eps_opt, n_star = 1000, nb_games = 20000, eps_min = 0.1, eps_max = 0.8, 
         playerDQN.save_net(question)
     return Final_Mopt, Final_Mrand
 
-def Q16(Eps, nb_games = 20000, GAMMA = 0.99, buffer_size = 10000, BATCH_SIZE = 64, TARGET_UPDATE = 500, step = 250, seed = None, question = 'q3-16', nb_samples = 5, save = True):
+def Q16(Eps, nb_games = 20000, GAMMA = 0.99, buffer_size = 10000, BATCH_SIZE = 64, TARGET_UPDATE = 500,
+         step = 250, seed = None, question = 'q3-16', nb_samples = 5, save = True):
     """
-    CHANGER COMMENTAIRE
-    Implements the solution to the 7th question. The QL-player is trained by playing against itself.
+    Implements the solution to the 16th question. The DQN-player is trained by playing against itself.
     - inputs: 
-        - Eps: a list containing the values of different eps for the QL player. dtype: list of float
+        - Eps: a list containing the values of different eps for the DQN player. dtype: list of float
         - nb_games: the number of games to play. Default: 20000, dtype: int
-        - alpha: learning rate of the QL-player. Default: 0.1, dtype: float
-        - gamma: discount factor of the QL-player. Default: 0.99, dtype: float
+        - GAMMA : discount factor of the DQN player. Default: 0.99, dtype: float
+        - buffer_size : buffer size of the DQN player. Default: 10 000. dtype : int.
+        - BATCH_SIZE : batch size of the DQN player. Default: 1, dtype: int
+        - TARGET_UPDATE : number of games after the target network of the DQN player is updated. Default: 500, dtype: int
         - step: number of games to play before calculating the average reward. Default: 250, dtype: int
         - seed: the user can set a given seed for reproducibility. Default: None
         - question: string used to differentiate between the plots for each question. 
-            Only used if 'save' is True. Default: 'q2-7', dtype: str
+            Only used if 'save' is True. Default: 'q3-16', dtype: str
         - nb_samples: if this number is higher than 1, the 'nb_games' are played several times and then averaged in order to take into account the schocasticity of te problem. Default: 5, dtype: int
         - save: if set to False, the plots are only displayed but not saved. Default: True, dtype: bool
     - outputs: 
-        - a figure with two subplots representing respectively the performance against the optimal player (Mopt) and against a totally random player (Mrand) with a plot for each n*. The performance is averaged on 500 games played 5 times to take stochasticity into account. 
+        - a figure with two subplots representing respectively the performance against the optimal player (Mopt) and against a totally random player (Mrand) with a plot for each eps. The performance is averaged on 500 games played 5 times to take stochasticity into account. 
         According the the value of the argument 'nb_samples', two different figures can be produced. Figures are saved in a folder Data if the argument 'save' is set to True.
-        - returns the final Mopt, Mrand for each n* as two dictionnaries
+        - returns the final Mopt, Mrand.
     """
     Eps = list(Eps)
     #wf.Q7_warning(Eps, nb_games, alpha, gamma, step, question, nb_samples, save)
@@ -1735,7 +1737,6 @@ def Q17(N_star, nb_games : int = 20000, eps_min : float = 0.1, eps_max : float =
         step : int = 250, seed = None, question : str = 'q3-17', nb_samples : int = 5, save : bool = True):
     
     """
-    CHANGER COMMENTAIRE
     Implements the solution to the 17th question
     - inputs: 
         - N_star: a list containing the values of different n*. dtype: list of int
@@ -1847,6 +1848,51 @@ def Q17(N_star, nb_games : int = 20000, eps_min : float = 0.1, eps_max : float =
 
     return Final_Mopt, Final_Mrand
 
+
+def Q19_train(n_star = 5000, nb_games : int = 20000, eps_min : float = 0.1, eps_max : float = 0.8, GAMMA : float = 0.99, 
+        buffer_size : int = 10000, BATCH_SIZE : int = 64, TARGET_UPDATE : int = 500,
+        seed = None, question : str = 'q3-19_train', save : bool = True):
+    
+    """
+    Implements the training of the best self-learning DQN player and save the model of its policy network.
+    - inputs: 
+        - n_star: the value n*. Default: 5000, dtype: int
+        - nb_games: the number of games to play. Default: 20000, dtype: int
+        - eps_min: the minimal value for the exploration level of the QL-player. Default: 0.1, dtype: float
+        - eps_max: the maximal value for the exploration level of the QL-player. Default: 0.8, dtype: float
+        - GAMMA : discount factor of the DQN player. Default: 0.99, dtype: float
+        - buffer_size : buffer size of the DQN player. Default: 10 000. dtype : int.
+        - BATCH_SIZE : batch size of the DQN player. Default: 1, dtype: int
+        - TARGET_UPDATE : number of games after the target network of the DQN player is updated. Default: 500, dtype: int
+        - seed: the user can set a given seed for reproducibility. Default: None
+        - question: string used to differentiate between the plots for each question. 
+            Only used if 'save' is True. Default: 'q3-19_train', dtype: str
+        - save: if set to False, the plots are only displayed but not saved. Default: True, dtype: bool
+
+    """
+
+    env = NimEnv(seed = seed)
+    eps = max(eps_min, eps_max * (1 - 1 / n_star)) 
+    policy_net = DQN().to(device)
+    target_net = DQN().to(device)
+    target_net.load_state_dict(policy_net.state_dict())
+    target_net.eval()
+    memory = ReplayMemory(buffer_size)
+    playerDQN = DQN_Player(player = 1, policy_net = policy_net, target_net= target_net, memory=memory,
+                                        EPS_GREEDY = eps, GAMMA = GAMMA, buffer_size = buffer_size, BATCH_SIZE = BATCH_SIZE,
+                                        TARGET_UPDATE = TARGET_UPDATE) 
+    
+    #training against himself for nb_games games.
+    for i in range(nb_games):
+        DQN_one_game_vs_self(playerDQN, env)         
+        env.reset()
+        playerDQN.EPS_GREEDY = max(eps_min, eps_max * (1 - (i + 2) / n_star)) # change eps for the next game (current game is (i+1))
+
+    #save the model
+    if save == True:
+        PATH = './Data/model' + question + '.pth'
+        torch.save(policy_net.state_dict(), PATH)
+
 def Q19(playerDQN : DQN_Player, configs = np.array([[3, 0, 0], [1, 2, 0], [0, 3, 2]]), question = 'q3-19', save = True):
     """
     Implements the solution of the 19th question. 
@@ -1877,8 +1923,6 @@ def Q19(playerDQN : DQN_Player, configs = np.array([[3, 0, 0], [1, 2, 0], [0, 3,
     x_label_list = np.arange(1, 8, 1)
     y_label_list = [1, 2, 3]
 
-    v_min = -8
-    v_max = 2
 
     ax1.set_yticks(np.arange(0, 3, 1))
     ax1.set_yticklabels(y_label_list)
@@ -1891,7 +1935,6 @@ def Q19(playerDQN : DQN_Player, configs = np.array([[3, 0, 0], [1, 2, 0], [0, 3,
     im1 = ax1.imshow(qvals1)
     #color bar on the right
     cax1 = divider1.append_axes("right", size="5%", pad=0.05)
-    im1.set_clim(v_min, v_max)
     plt.colorbar(im1, cax = cax1, label = 'Q-values')
     
     
@@ -1905,7 +1948,6 @@ def Q19(playerDQN : DQN_Player, configs = np.array([[3, 0, 0], [1, 2, 0], [0, 3,
     ax2.set_title('Current configuration: ' + str(second_heap[0]) + ' | ' + str(second_heap[1]) + ' | ' + str(second_heap[2]))
     im2 = ax2.imshow(qvals2)
     cax2 = divider2.append_axes("right", size="5%", pad=0.05)
-    im2.set_clim(v_min, v_max)
     plt.colorbar(im2, cax = cax2, label = 'Q-values')
 
     ax3.set_yticks(np.arange(0, 3, 1))
@@ -1918,7 +1960,6 @@ def Q19(playerDQN : DQN_Player, configs = np.array([[3, 0, 0], [1, 2, 0], [0, 3,
     ax3.set_title('Current configuration: ' + str(third_heap[0]) + ' | ' + str(third_heap[1]) + ' | ' + str(third_heap[2]))
     im3 = ax3.imshow(qvals3)
     cax3 = divider3.append_axes("right", size="5%", pad=0.05) 
-    im3.set_clim(v_min, v_max)
     plt.colorbar(im3, cax = cax3, label = 'Q-values')
 
     if save:
