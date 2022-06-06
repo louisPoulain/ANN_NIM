@@ -1092,25 +1092,15 @@ def DQN_one_game(playerDQN : DQN_Player, playerOpt : OptimalPlayer, env : NimEnv
         playerDQN.update_target()
     return reward, loss  
     
-def DQN_one_game_vs_self(player_DQN, env, update = True):
+def DQN_one_game_vs_self(player_DQN : DQN_Player, env : NimEnv, update : bool = True):
     """
-    CHANGER COMMENTAIRE
-    Implementation of one game of NIM of a Q-learning player (after: QL player) against itself.
+    Implementation of one game of NIM of a DQN-learning player (after: DQN player) against itself.
     - inputs:
-        - playerQL: an instance of the PlayerQL class. The idea is to then create two copies of this player 
-            that will play against each other. Q-values are updated after each game for every instance 
-            (the copies and the original) if update is set to True (see after).
-        - eps: epsilon associated to QL player (probability of playing at random)
-        - alpha: learning rate of the QL player
-        - gamma: discount factor of the QL player
+        - playerDQN: an instance of the PlayerDQN class. Its policy net and its memory are updated after each game for every instance 
+            if update is set to True (see after).
         - env: an instance of the class NimEnv. Setting with which the players are going to play
-        - update: if set to false, the Q-values are not updated. Default: True. 
-            The utility of this argument is to be able to play a game without having to update the 
-            Q-values (useful when computing Mopt and Mrand)
+        - update: if set to false, the policy net and the memory are not updated. Default: True. 
     - output: None
-    
-    The idea of the update is to keep a copy of the environment before the turn of a player and after the turn of the other (heaps before and heaps_after) and also the actions played by each.
-    If the game is over we need to update both the players'q-values as they both get a reward (-1 or +1).
     """
 
     heaps, _, _ = env.observe()
@@ -1127,7 +1117,6 @@ def DQN_one_game_vs_self(player_DQN, env, update = True):
                 reward = torch.tensor([-1], device=device)
                 next_state = None
                 if update == True :
-                    #print("non valid action, store ", state_DQN1, move_DQN1, next_state, reward)
                     player_DQN.memory_push(state_DQN1, move_DQN1, next_state, reward)
                     loss = player_DQN.optimize()
 
@@ -1162,7 +1151,6 @@ def DQN_one_game_vs_self(player_DQN, env, update = True):
                 reward = torch.tensor([-1], device=device)
                 next_state = None
                 if update == True :
-                    #print("non valid action, store ", state_DQN2, move_DQN2, next_state, reward)
                     player_DQN.memory_push(state_DQN2, move_DQN2, next_state, reward)
                     loss = player_DQN.optimize()
 
